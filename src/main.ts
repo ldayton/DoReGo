@@ -108,10 +108,12 @@ let exportGeneration = 0;
 let pollTimer: ReturnType<typeof setTimeout>;
 function restoreSpec(input: unknown): ExerciseSpec {
   if (!input || typeof input !== 'object') throw new Error('Invalid saved exercise.');
-  const saved = { ...input, voice: 'bitklavier', gate: DEFAULT_SPEC.gate } as Record<
-    string,
-    unknown
-  >;
+  const saved = {
+    ...input,
+    voice: 'bitklavier',
+    gate: DEFAULT_SPEC.gate,
+    noteBeats: DEFAULT_SPEC.noteBeats,
+  } as Record<string, unknown>;
   if (saved.pattern === 'strawDescending') {
     saved.pattern = 'arpeggio';
     saved.direction = 'down';
@@ -148,7 +150,7 @@ $('#app').innerHTML = `
           <input id="tempo-slider" type="range" min="30" max="240" step="1" aria-label="Tempo slider" />
           <details class="more-settings"><summary>More options <i data-lucide="chevron-down"></i></summary><div class="advanced"><label id="starting-chords-field" class="toggle-row" hidden><span>Starting-note chords</span><input name="startingChords" id="startingChords" type="checkbox" role="switch" checked /></label>
             <div class="field-row"><label class="field">Repeats<input name="repetitions" id="repetitions" type="number" min="1" max="16" step="1" /></label><label class="field">Rest (beats)<input name="restBeats" id="restBeats" type="number" min="0" max="16" step="1" /></label></div>
-            <div class="field-row"><label class="field">Count-in<select name="countIn" id="countIn"><option value="0">0 bars</option><option value="2">½ bar</option><option value="4">1 bar</option><option value="8">2 bars</option></select></label><label class="field">Note length<select name="noteBeats" id="noteBeats"><option value="0.25">¼ beat</option><option value="0.5">½ beat</option><option value="1">1 beat</option><option value="2">½ bar (2 beats)</option><option value="4">1 bar (4 beats)</option></select></label></div>
+            <label class="field">Count-in<select name="countIn" id="countIn"><option value="0">0 bars</option><option value="2">½ bar</option><option value="4">1 bar</option><option value="8">2 bars</option></select></label>
             <label class="field">Volume <span class="volume-row"><i data-lucide="volume-2"></i><input name="volume" id="volume" type="range" min="-36" max="0" step="1" /></span></label>
             <label class="toggle-row"><span>Metronome</span><input name="metronome" id="metronome" type="checkbox" role="switch" /></label>
             <label class="toggle-row"><span>Solfege</span><input name="solfege" id="solfege" type="checkbox" role="switch" /></label>
@@ -261,6 +263,7 @@ function readForm(): ExerciseSpec {
   const result = { ...spec, ...Object.fromEntries(new FormData(form)) } as Record<string, unknown>;
   for (const key of numeric) result[key] = Number(result[key]);
   result.gate = DEFAULT_SPEC.gate;
+  result.noteBeats = DEFAULT_SPEC.noteBeats;
   result.transition = result.transition === '' ? null : Number(result.transition);
   result.metronome = $<HTMLInputElement>('#metronome').checked;
   result.solfege = $<HTMLInputElement>('#solfege').checked;
