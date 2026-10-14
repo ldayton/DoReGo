@@ -1,0 +1,319 @@
+import { chromium } from 'playwright';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import assert from 'node:assert/strict';
+import { Midi } from '../src/midi';
+import { DEFAULT_SPEC } from '../src/music';
+
+const base = process.env.TEST_URL || 'http://127.0.0.1:4317';
+const work = new URL('../work/', import.meta.url);
+await mkdir(work, { recursive: true });
+const browser = await chromium.launch({ headless: true });
+const page = await browser.newPage({
+  viewport: { width: 1440, height: 1100 },
+  acceptDownloads: true,
+});
+const errors: string[] = [];
+page.on('pageerror', (error) => errors.push(error.message));
+try {
+  await page.goto(base);
+  await page.getByRole('heading', { name: 'Find your next note.' }).waitFor();
+  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio (Ascending)');
+  assert.deepEqual(await page.locator('#pattern option').allTextContents(), [
+    'Arpeggio',
+    'Major Scale',
+  ]);
+  assert.deepEqual(await page.locator('#direction option').allTextContents(), [
+    'Ascending',
+    'Descending',
+  ]);
+  await page.locator('canvas').screenshot({ path: new URL('practice-canvas.png', work).pathname });
+  await page.screenshot({ path: new URL('desktop.png', work).pathname, fullPage: true });
+  await page.locator('#play').click();
+  await page.waitForTimeout(400);
+  assert.equal(await page.locator('#play').innerText(), 'Pause');
+  await page.locator('#play').click();
+  const paused = Number(await page.locator('#position').inputValue());
+  assert.ok(paused > 0.1);
+  await page.waitForTimeout(200);
+  assert.equal(Number(await page.locator('#position').inputValue()), paused);
+  await page.locator('#play').click();
+  await page.waitForTimeout(250);
+  await page.locator('#play').click();
+  assert.ok(Number(await page.locator('#position').inputValue()) > paused);
+  await page.locator('#restart').click();
+  assert.equal(Number(await page.locator('#position').inputValue()), 0);
+  await page.locator('#position').focus();
+  await page.keyboard.press('ArrowRight');
+  assert.ok(Number(await page.locator('#position').inputValue()) > 0);
+  await page.locator('h1').click();
+  await page.keyboard.press('Space');
+  assert.equal(await page.locator('#play').innerText(), 'Pause');
+  await page.locator('#play').click();
+  await page.locator('#fullscreen').click();
+  await page.waitForFunction(() => !!document.fullscreenElement);
+  await page.locator('#fullscreen').click();
+  await page.waitForFunction(() => !document.fullscreenElement);
+  await page.locator('#transpose-up').click();
+  assert.equal(await page.locator('#key').inputValue(), '1');
+  assert.equal(await page.locator('#low').inputValue(), '61');
+  await page.getByRole('button', { name: 'Major Scale', exact: false }).click();
+  assert.equal(await page.locator('#pattern').inputValue(), 'major');
+  await page.locator('#save-preset').click();
+  await page.locator('#preset-name').fill('My test warm-up');
+  await page
+    .locator('#save-form')
+    .getByRole('button', { name: 'Save preset', exact: true })
+    .click();
+  await page.reload();
+  assert.equal(await page.locator('#pattern').inputValue(), 'major');
+  assert.ok((await page.locator('#saved-presets').innerText()).includes('My test warm-up'));
+  await page.locator('#saved-presets').selectOption({ label: 'My test warm-up' });
+  await page.locator('#delete-preset').click();
+  assert.ok(!(await page.locator('#saved-presets').innerText()).includes('My test warm-up'));
+  const midiEvent = page.waitForEvent('download');
+  await page.locator('#midi-download').click();
+  const midiDownload = await midiEvent;
+  await midiDownload.saveAs(new URL('exercise.mid', work).pathname);
+  const midi = new Midi(await readFile(new URL('exercise.mid', work)));
+  assert.ok(midi.tracks[0].notes.length > 0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    true
+  );
+  await page.screenshot({ path: new URL('mobile.png', work).pathname, fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.locator('#low').selectOption('84');
+  assert.ok(await page.locator('#form-error').isVisible());
+  assert.ok(await page.locator('#play').isDisabled());
+  await page.locator('#low').selectOption('60');
+  assert.ok(await page.locator('#form-error').isHidden());
+  // Frame-order independence, including a personal transition marker.
+  const render = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await render.goto(`${base}/render.html`);
+  await render.waitForFunction(() => !!window.doregoRenderer);
+  await render.evaluate((spec) => window.doregoRenderer.init(spec, 1280, 720), {
+    ...DEFAULT_SPEC,
+    transition: 65,
+  });
+  await render.evaluate(() => window.doregoRenderer.frame(3));
+  const first = await render.locator('canvas').screenshot();
+  await render.evaluate(() => window.doregoRenderer.frame(12));
+  await render.evaluate(() => window.doregoRenderer.frame(0.3));
+  await render.evaluate(() => window.doregoRenderer.frame(3));
+  assert.deepEqual(await render.locator('canvas').screenshot(), first);
+  await render.close();
+  // Arpeggio has independent direction and range controls.
+  await page.locator('#low').selectOption('60');
+  await page.locator('#high').selectOption('67');
+  await page.locator('#pattern').selectOption('arpeggio');
+  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio (Ascending)');
+  assert.ok(await page.locator('#low').isEnabled());
+  assert.ok(await page.locator('#high').isEnabled());
+  const narrowSummary = await page.locator('#exercise-summary').textContent();
+  await page.locator('#high').selectOption('68');
+  assert.notEqual(await page.locator('#exercise-summary').textContent(), narrowSummary);
+  await page.locator('.more-settings summary').click();
+  const withChords = await page.locator('#exercise-summary').textContent();
+  await page.locator('#startingChords').uncheck();
+  assert.notEqual(await page.locator('#exercise-summary').textContent(), withChords);
+  await page.locator('#direction').selectOption('down');
+  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio (Descending)');
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  // A short export through the same UI used by a person.
+  const short = {
+    ...DEFAULT_SPEC,
+    pattern: 'major',
+    low: 60,
+    high: 64,
+    direction: 'up',
+    bpm: 240,
+    countIn: 2,
+    repetitions: 2,
+    restBeats: 1,
+    noteBeats: 1,
+  };
+  await page.evaluate(
+    (spec) => localStorage.setItem('dorego.current', JSON.stringify(spec)),
+    short
+  );
+  await page.reload();
+  await page.locator('#video-button').click();
+  await page.locator('#start-export').click();
+  await page.locator('#video-download').waitFor({ state: 'visible', timeout: 180000 });
+  const downloadEvent = page.waitForEvent('download');
+  await page.locator('#video-download').click();
+  const video = await downloadEvent;
+  const path = new URL('exercise.mp4', work).pathname;
+  await video.saveAs(path);
+  const { stdout } = await promisify(execFile)('ffprobe', [
+    '-v',
+    'error',
+    '-show_streams',
+    '-show_format',
+    '-of',
+    'json',
+    path,
+  ]);
+  const probe = JSON.parse(stdout);
+  assert.ok(probe.streams.some((s: { codec_type: string }) => s.codec_type === 'audio'));
+  const stream = probe.streams.find((s: { codec_type: string }) => s.codec_type === 'video');
+  assert.equal(stream.width, 1280);
+  assert.equal(stream.height, 720);
+  assert.equal(stream.r_frame_rate, '30/1');
+  assert.ok(Number(probe.format.duration) >= 3.05);
+  await writeFile(new URL('ffprobe.json', work), stdout);
+  const { stdout: pcm } = await promisify(execFile)(
+    'ffmpeg',
+    ['-v', 'error', '-i', path, '-vn', '-f', 'f32le', '-ar', '44100', '-ac', '1', 'pipe:1'],
+    { encoding: 'buffer', maxBuffer: 10 * 1024 * 1024 }
+  );
+  let square = 0;
+  for (let i = 0; i + 4 <= pcm.length; i += 4) square += pcm.readFloatLE(i) ** 2;
+  const rms = Math.sqrt(square / (pcm.length / 4));
+  assert.ok(rms > 0.001, `Audio should be audible, RMS=${rms}`);
+  // Check that guide pitches occur on their shared timeline after the count-in.
+  function powerAt(frequency: number, start: number) {
+    const length = 4096,
+      offset = Math.floor(start * 44100);
+    let real = 0,
+      imaginary = 0;
+    for (let i = 0; i < length; i++) {
+      const sample =
+        pcm.readFloatLE((offset + i) * 4) *
+        (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (length - 1)));
+      const angle = (2 * Math.PI * frequency * i) / 44100;
+      real += sample * Math.cos(angle);
+      imaginary += sample * Math.sin(angle);
+    }
+    return real * real + imaginary * imaginary;
+  }
+  for (const [time, midi] of [
+    [0.55, 60],
+    [0.8, 62],
+    [1.05, 64],
+    [1.55, 60],
+  ] as const) {
+    const expected = 440 * 2 ** ((midi - 69) / 12),
+      power = powerAt(expected, time);
+    assert.ok(power > 1, `Expected guide pitch ${midi} at ${time}s`);
+    for (const other of [60, 62, 64].filter((n) => n !== midi))
+      assert.ok(
+        power > powerAt(440 * 2 ** ((other - 69) / 12), time) * 3,
+        `Pitch ${midi} should dominate at ${time}s`
+      );
+  }
+  // Compare the encoded frame at t=1s with that exact state in the shared renderer.
+  const reference = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await reference.goto(`${base}/render.html`);
+  await reference.waitForFunction(() => !!window.doregoRenderer);
+  await reference.evaluate(
+    (spec) => {
+      window.doregoRenderer.init(spec, 1280, 720);
+      window.doregoRenderer.frame(1);
+    },
+    short as typeof DEFAULT_SPEC
+  );
+  const referencePath = new URL('video-reference.png', work).pathname;
+  await reference.locator('canvas').screenshot({ path: referencePath });
+  await reference.close();
+  const framePath = new URL('video-frame.png', work).pathname;
+  await promisify(execFile)('ffmpeg', [
+    '-v',
+    'error',
+    '-y',
+    '-i',
+    path,
+    '-vf',
+    'select=eq(n\\,30)',
+    '-frames:v',
+    '1',
+    framePath,
+  ]);
+  const similarity = await promisify(execFile)('ffmpeg', [
+    '-hide_banner',
+    '-i',
+    framePath,
+    '-i',
+    referencePath,
+    '-lavfi',
+    'ssim',
+    '-f',
+    'null',
+    '-',
+  ]);
+  const score = Number(similarity.stderr.match(/All:([\d.]+)/)?.[1]);
+  assert.ok(score > 0.98, `Frame should match t=1s reference, SSIM=${score}`);
+  // Input validation and local-origin protections.
+  const bad = await page.request.post(`${base}/api/exports`, {
+    data: { spec: { ...short, bpm: 0 } },
+  });
+  assert.equal(bad.status(), 400);
+  const crossOrigin = await page.request.post(`${base}/api/exports`, {
+    headers: { origin: 'https://example.org' },
+    data: { spec: short },
+  });
+  assert.equal(crossOrigin.status(), 403);
+  const cancel = await page.request.post(`${base}/api/exports`, { data: { spec: short } });
+  const cancelJob = await cancel.json();
+  assert.equal(cancel.status(), 202);
+  const concurrent = await page.request.post(`${base}/api/exports`, { data: { spec: short } });
+  assert.equal(concurrent.status(), 400);
+  const cancelled = await page.request.delete(`${base}/api/exports/${cancelJob.id}`);
+  assert.equal((await cancelled.json()).status, 'cancelled');
+  const hdStart = await page.request.post(`${base}/api/exports`, {
+    data: {
+      spec: {
+        ...DEFAULT_SPEC,
+        pattern: 'major',
+        low: 60,
+        high: 60,
+        countIn: 0,
+        repetitions: 1,
+        noteBeats: 0.25,
+        bpm: 240,
+      },
+      height: 1080,
+    },
+  });
+  assert.equal(hdStart.status(), 202);
+  const hdJob = await hdStart.json();
+  const deadline = Date.now() + 90000;
+  let hdStatus = hdJob.status;
+  while (hdStatus !== 'complete' && Date.now() < deadline) {
+    await page.waitForTimeout(500);
+    const result = await (await page.request.get(`${base}/api/exports/${hdJob.id}`)).json();
+    assert.notEqual(result.status, 'failed', result.error);
+    hdStatus = result.status;
+  }
+  assert.equal(hdStatus, 'complete');
+  const hdFile = new URL('exercise-1080.mp4', work).pathname;
+  const hdResponse = await page.request.get(`${base}/api/exports/${hdJob.id}/download`);
+  await writeFile(hdFile, await hdResponse.body());
+  const hdProbe = JSON.parse(
+    (
+      await promisify(execFile)('ffprobe', [
+        '-v',
+        'error',
+        '-select_streams',
+        'v:0',
+        '-show_entries',
+        'stream=width,height',
+        '-of',
+        'json',
+        hdFile,
+      ])
+    ).stdout
+  );
+  assert.deepEqual(hdProbe.streams[0], { width: 1920, height: 1080 });
+  assert.deepEqual(errors, []);
+  console.log(
+    `PASS: desktop/mobile UI, playback, pause/resume, presets, transposition, validation, MIDI, frame-order independence, MP4 with audible audio (RMS ${rms.toFixed(4)}), guide pitch timing, exported frame timing (SSIM ${score.toFixed(4)}), cancellation, and origin protection.`
+  );
+} finally {
+  await browser.close();
+}
