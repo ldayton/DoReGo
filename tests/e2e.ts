@@ -28,9 +28,11 @@ try {
   await page.goto(base);
   await page.locator('#exercise-title').waitFor();
   assert.equal(await page.locator('#voice').count(), 0);
-  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio (Ascending)');
+  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio & Scale (Ascending)');
   assert.deepEqual(await page.locator('#pattern option').allTextContents(), [
-    'Arpeggio',
+    'Arpeggio & Scale',
+    'Five-Note Scale',
+    'Octave Arpeggio',
     'Rossini Scale',
     'Major Scale',
   ]);
@@ -167,7 +169,7 @@ try {
   await setNote('low', 60);
   await setNote('high', 67);
   await page.locator('#pattern').selectOption('arpeggio');
-  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio (Ascending)');
+  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio & Scale (Ascending)');
   assert.ok(await page.locator('#low').isEnabled());
   assert.ok(await page.locator('#high').isEnabled());
   const narrowSummary = await page.locator('#exercise-summary').textContent();
@@ -178,7 +180,10 @@ try {
   await page.locator('#startingChords').uncheck();
   assert.notEqual(await page.locator('#exercise-summary').textContent(), withChords);
   await page.getByRole('radio', { name: 'Descending', exact: true }).check();
-  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio (Descending)');
+  assert.equal(
+    await page.locator('#exercise-title').textContent(),
+    'Arpeggio & Scale (Descending)'
+  );
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await page.setViewportSize({ width: 1440, height: 1100 });

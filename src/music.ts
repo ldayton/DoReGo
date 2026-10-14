@@ -1,8 +1,18 @@
 export const PATTERNS = {
   arpeggio: {
-    name: 'Arpeggio',
+    name: 'Arpeggio & Scale',
     intervals: [0, 4, 7],
-    description: 'A vocal arpeggio phrase, moving one semitone at a time.',
+    description: 'An arpeggio with a stepwise return, moving one semitone per round.',
+  },
+  fiveNote: {
+    name: 'Five-Note Scale',
+    intervals: [0, 2, 4, 5, 7, 5, 4, 2, 0],
+    description: 'A five-note major scale out and back, moving one semitone per round.',
+  },
+  octaveArpeggio: {
+    name: 'Octave Arpeggio',
+    intervals: [0, 4, 7, 12, 7, 4, 0],
+    description: 'A major arpeggio through an octave and back, moving one semitone per round.',
   },
   rossini: {
     name: 'Rossini Scale',
@@ -17,7 +27,10 @@ export const PATTERNS = {
 } as const;
 export type Pattern = keyof typeof PATTERNS;
 export function isVocalPattern(pattern: Pattern) {
-  return pattern === 'arpeggio' || pattern === 'rossini';
+  return pattern !== 'major';
+}
+export function vocalSpan(pattern: Pattern) {
+  return pattern === 'rossini' ? 19 : pattern === 'octaveArpeggio' ? 12 : 7;
 }
 export type Direction = 'up' | 'down';
 export type Voice = 'bitklavier';
@@ -216,22 +229,34 @@ export function generateExercise(input: unknown): Exercise {
 }
 function generateVocalExercise(spec: ExerciseSpec): Exercise {
   const rossini = spec.pattern === 'rossini';
-  const span = rossini ? 19 : 7;
+  const span = vocalSpan(spec.pattern);
   const descending = !rossini && spec.direction === 'down';
   if (spec.high - spec.low < span)
     throw new Error(
       rossini
         ? 'Rossini Scale needs a range of at least an octave and a fifth (19 semitones).'
-        : 'These vocal phrases need a range of at least seven semitones (a perfect fifth).'
+        : span === 12
+          ? 'Octave Arpeggio needs a range of at least an octave (12 semitones).'
+          : 'These vocal phrases need a range of at least seven semitones (a perfect fifth).'
     );
-  const offsets = rossini
-    ? PATTERNS.rossini.intervals
-    : descending
-      ? [0, -3, -7, -5, -3, -2, 0, -3, -7, -5, -3, -2, 0]
-      : [0, 4, 7, 5, 4, 2, 0, 4, 7, 5, 4, 2, 0];
-  const lengths = rossini
-    ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
-    : [2, 2, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 2];
+  const offsets =
+    spec.pattern === 'fiveNote'
+      ? descending
+        ? [0, -2, -3, -5, -7, -5, -3, -2, 0]
+        : PATTERNS.fiveNote.intervals
+      : spec.pattern === 'octaveArpeggio'
+        ? descending
+          ? [0, -5, -8, -12, -8, -5, 0]
+          : PATTERNS.octaveArpeggio.intervals
+        : rossini
+          ? PATTERNS.rossini.intervals
+          : descending
+            ? [0, -3, -7, -5, -3, -2, 0, -3, -7, -5, -3, -2, 0]
+            : [0, 4, 7, 5, 4, 2, 0, 4, 7, 5, 4, 2, 0];
+  const lengths =
+    spec.pattern === 'arpeggio'
+      ? [2, 2, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 2]
+      : offsets.map((_, index) => (index === offsets.length - 1 ? 2 : 1));
   const roots: number[] = [];
   if (descending) for (let root = spec.high; root >= spec.low + span; root--) roots.push(root);
   else for (let root = spec.low; root <= spec.high - span; root++) roots.push(root);
@@ -263,7 +288,7 @@ function generateVocalExercise(spec: ExerciseSpec): Exercise {
       durationBeats: length * spec.gate,
       slotBeats: length,
       repetition,
-      degree: (midi - (descending ? root - 7 : root) + 120) % 12,
+      degree: (midi - (descending ? root - span : root) + 120) % 12,
       velocity: guide ? 0.71 : 0.65,
     };
     notes.push(n);
@@ -279,20 +304,21 @@ function generateVocalExercise(spec: ExerciseSpec): Exercise {
       rounds.push({
         id: rounds.length,
         midi: root,
-        degree: descending ? 7 : 0,
+        degree: descending ? span % 12 : 0,
         onsetBeat: beat,
         endBeat: beat + phraseLength,
       });
       if (spec.startingChords) {
-        const approach = descending ? [-20, -8, -4, -1] : [-13, -6, -1, 3];
-        const target = descending ? [-19, -7, -3, 0] : [-12, 0, 4];
+        const tonic = descending ? root - span : root;
+        const approach = descending ? [-13, -1, 3, 6] : [-13, -6, -1, 3];
+        const target = descending ? [-12, 0, 4, 7] : [-12, 0, 4];
         const approachNotes = approach.map((offset) =>
-          add(root + offset, beat, 2 * spec.noteBeats, rep + 1, root, false)
+          add(tonic + offset, beat, 2 * spec.noteBeats, rep + 1, root, false)
         );
         guideNotes.push(approachNotes[approachNotes.length - 1]);
         beat += 2 * spec.noteBeats;
         const targetNotes = target.map((offset) =>
-          add(root + offset, beat, 4 * spec.noteBeats, rep + 1, root, false)
+          add(tonic + offset, beat, 4 * spec.noteBeats, rep + 1, root, false)
         );
         guideNotes.push(targetNotes[targetNotes.length - 1]);
         beat += 4 * spec.noteBeats;

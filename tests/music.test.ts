@@ -16,7 +16,7 @@ import { Midi, exportMidi } from '../src/midi';
 test('exercise choices include Rossini Scale, with ascending Arpeggio as the default', () => {
   assert.deepEqual(
     Object.values(PATTERNS).map((p) => p.name),
-    ['Arpeggio', 'Rossini Scale', 'Major Scale']
+    ['Arpeggio & Scale', 'Five-Note Scale', 'Octave Arpeggio', 'Rossini Scale', 'Major Scale']
   );
   assert.equal(DEFAULT_SPEC.pattern, 'arpeggio');
   assert.equal(DEFAULT_SPEC.direction, 'up');
@@ -46,8 +46,8 @@ test('Arpeggio generates the reference phrase and chromatic sweep in either dire
     [0, -3, -7, -5, -3, -2, 0, -3, -7, -5, -3, -2, 0]
   );
   assert.equal(down.notes[13].midi, 67);
-  assert.equal(up.title, 'Arpeggio (Ascending)');
-  assert.equal(down.title, 'Arpeggio (Descending)');
+  assert.equal(up.title, 'Arpeggio & Scale (Ascending)');
+  assert.equal(down.title, 'Arpeggio & Scale (Descending)');
   for (const n of [...up.notes, ...down.notes]) assert.ok(n.midi >= 60 && n.midi <= 68);
   assert.throws(() => generateExercise({ ...base, high: 66 }), /perfect fifth/);
 });
@@ -262,4 +262,56 @@ test('Rossini matches the supplied pitches and ignores direction, with roots fit
     withChords.guideNotes!.slice(2, 15).map((note) => note.midi),
     exercise.notes.slice(0, 13).map((note) => note.midi)
   );
+});
+
+test('five-note scales and octave arpeggios fit the range and preserve their major-key return', () => {
+  for (const [pattern, span, ascending, descending] of [
+    ['fiveNote', 7, [60, 62, 64, 65, 67, 65, 64, 62, 60], [68, 66, 65, 63, 61, 63, 65, 66, 68]],
+    ['octaveArpeggio', 12, [60, 64, 67, 72, 67, 64, 60], [73, 68, 65, 61, 65, 68, 73]],
+  ] as const) {
+    const base = {
+      ...DEFAULT_SPEC,
+      pattern,
+      low: 60,
+      high: 61 + span,
+      startingChords: false,
+      countIn: 8,
+      repetitions: 2,
+      restBeats: 2,
+    };
+    for (const [direction, expected, roots] of [
+      ['up', ascending, [60, 61, 60, 61]],
+      ['down', descending, [61 + span, 60 + span, 61 + span, 60 + span]],
+    ] as const) {
+      const exercise = generateExercise({ ...base, direction });
+      assert.deepEqual(
+        exercise.notes.slice(0, expected.length).map((n) => n.midi),
+        expected
+      );
+      assert.deepEqual(
+        exercise.rounds.map((r) => r.midi),
+        roots
+      );
+      assert.ok(exercise.notes.every((n) => n.midi >= base.low && n.midi <= base.high));
+      assert.equal(exercise.notes[expected.length - 1].slotBeats, 2);
+      assert.equal(exercise.rounds[1].onsetBeat, 8 + expected.length + 1 + base.restBeats);
+      assert.equal(practiceAt(exercise, secondsAt(9, base.bpm)).current.midi, roots[0]);
+      const midi = new Midi(exportMidi(exercise));
+      assert.deepEqual(
+        midi.tracks[0].notes.map((n) => n.midi),
+        exercise.notes.map((n) => n.midi)
+      );
+      const chords = generateExercise({ ...base, direction, startingChords: true });
+      assert.deepEqual(
+        chords.guideNotes!.slice(2, 2 + expected.length).map((n) => n.midi),
+        expected
+      );
+      const tonic = direction === 'down' ? roots[0] - span : roots[0];
+      assert.deepEqual(
+        chords.notes.slice(4, direction === 'down' ? 8 : 7).map((n) => n.midi),
+        (direction === 'down' ? [-12, 0, 4, 7] : [-12, 0, 4]).map((offset) => tonic + offset)
+      );
+    }
+    assert.throws(() => generateExercise({ ...base, high: 60 + span - 1 }), /range/);
+  }
 });

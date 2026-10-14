@@ -20,6 +20,7 @@ import {
 import {
   DEFAULT_SPEC,
   isVocalPattern,
+  vocalSpan,
   PATTERNS,
   SHARPS,
   generateExercise,
@@ -281,12 +282,13 @@ function readForm(): ExerciseSpec {
   const result = { ...spec, ...Object.fromEntries(new FormData(form)) } as Record<string, unknown>;
   for (const key of numeric) result[key] = Number(result[key]);
   if (
-    result.pattern === 'rossini' &&
-    spec.pattern !== 'rossini' &&
-    Number(result.high) - Number(result.low) < 19
+    isVocalPattern(result.pattern as ExerciseSpec['pattern']) &&
+    result.pattern !== spec.pattern &&
+    Number(result.high) - Number(result.low) < vocalSpan(result.pattern as ExerciseSpec['pattern'])
   ) {
-    result.high = Math.min(96, Number(result.low) + 19);
-    result.low = Math.min(Number(result.low), Number(result.high) - 19);
+    const span = vocalSpan(result.pattern as ExerciseSpec['pattern']);
+    result.high = Math.min(96, Number(result.low) + span);
+    result.low = Math.min(Number(result.low), Number(result.high) - span);
   }
   result.gate = DEFAULT_SPEC.gate;
   result.noteBeats = DEFAULT_SPEC.noteBeats;

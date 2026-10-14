@@ -96,6 +96,25 @@ try {
   );
   await page.locator('#pattern').selectOption('arpeggio');
   assert.ok(await page.locator('#direction').isVisible());
+  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio & Scale (Ascending)');
+  for (const [pattern, label] of [
+    ['fiveNote', 'Five-Note Scale'],
+    ['octaveArpeggio', 'Octave Arpeggio'],
+  ]) {
+    await page.locator('#pattern').selectOption(pattern);
+    assert.equal(await page.locator('#exercise-title').textContent(), `${label} (Ascending)`);
+    assert.ok(await page.locator('#direction').isVisible());
+    assert.ok(await page.locator('#key').isDisabled());
+    await page.locator('input[name="direction"][value="down"]').check();
+    assert.equal(await page.locator('#exercise-title').textContent(), `${label} (Descending)`);
+    assert.ok(await page.locator('#form-error').isHidden());
+    const exported = page.waitForEvent('download');
+    await page.locator('#midi-download').click();
+    assert.ok((await readFile((await (await exported).path())!)).includes(Buffer.from(label)));
+    await page.locator('input[name="direction"][value="up"]').check();
+  }
+  await page.reload();
+  assert.equal(await page.locator('#pattern').inputValue(), 'octaveArpeggio');
   // A phone gets a taller, fully fitted keyboard; desktop keeps the video layout.
   await page.setViewportSize({ width: 320, height: 720 });
   await page.waitForFunction(() => {
