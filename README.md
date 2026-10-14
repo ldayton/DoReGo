@@ -32,7 +32,7 @@ No account, API key, microphone access, or hosted service is required. CC BY 4.0
 - Choose your lowest/highest vocal notes and direction. Major Scale also lets you choose a key; Arpeggio moves by semitone through your range.
 - Transpose the key and range together with the minus/plus buttons.
 - Adjust tempo (30–240 BPM), rounds, inter-round rests, count-in, note length, articulation, volume, and the sampled Steinway Grand or optional sine/triangle guide sounds. All beats are quarter-note beats. The default count-in is two bars of 4/4 (eight beats), displayed as two labeled four-beat groups with the active beat highlighted and each downbeat accented.
-- Optional metronome and a personal register-transition marker. The marker is a reference you place, not an inferred physiological boundary.
+- Optional metronome.
 - Play/pause, scrub, restart, and fullscreen. Space toggles playback, R restarts, F toggles fullscreen when a form control is not focused. Editing settings resets playback so the display and sound use the same exercise.
 - Save and load up to 50 named presets.
 

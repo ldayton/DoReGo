@@ -114,6 +114,7 @@ function restoreSpec(input: unknown): ExerciseSpec {
     gate: DEFAULT_SPEC.gate,
     noteBeats: DEFAULT_SPEC.noteBeats,
     solfege: false,
+    transition: null,
   } as Record<string, unknown>;
   if (saved.pattern === 'strawDescending') {
     saved.pattern = 'arpeggio';
@@ -154,7 +155,6 @@ $('#app').innerHTML = `
             <label class="field">Count-in<select name="countIn" id="countIn"><option value="0">0 bars</option><option value="2">½ bar</option><option value="4">1 bar</option><option value="8">2 bars</option></select></label>
             <label class="field">Volume <span class="volume-row"><i data-lucide="volume-2"></i><input name="volume" id="volume" type="range" min="-36" max="0" step="1" /></span></label>
             <label class="toggle-row"><span>Metronome</span><input name="metronome" id="metronome" type="checkbox" role="switch" /></label>
-            <label class="field">Transition marker<select name="transition" id="transition"><option value="">Off</option></select></label>
           </div></details>
           <p id="form-error" class="error-message" role="alert" hidden></p>
         </form>
@@ -192,8 +192,6 @@ const numeric = [
   'gate',
   'volume',
 ] as const;
-for (let midi = 24; midi <= 96; midi++)
-  $<HTMLSelectElement>('#transition').add(new Option(noteName(midi), String(midi)));
 function syncSpinners() {
   for (const id of ['low', 'high']) {
     const midi = Number($<HTMLInputElement>(`#${id}`).value);
@@ -264,7 +262,7 @@ function readForm(): ExerciseSpec {
   for (const key of numeric) result[key] = Number(result[key]);
   result.gate = DEFAULT_SPEC.gate;
   result.noteBeats = DEFAULT_SPEC.noteBeats;
-  result.transition = result.transition === '' ? null : Number(result.transition);
+  result.transition = null;
   result.metronome = $<HTMLInputElement>('#metronome').checked;
   result.solfege = false;
   result.startingChords = $<HTMLInputElement>('#startingChords').checked;
