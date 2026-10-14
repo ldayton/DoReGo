@@ -266,6 +266,9 @@ function populate() {
   syncSpinners();
   $<HTMLInputElement>('#tempo-slider').value = String(spec.bpm);
   const vocal = isVocalPattern(spec.pattern);
+  const direction = $<HTMLFieldSetElement>('#direction');
+  direction.hidden = spec.pattern === 'rossini';
+  direction.disabled = spec.pattern === 'rossini';
   for (const id of ['key']) {
     const element = $<HTMLSelectElement>(`#${id}`);
     element.disabled = vocal;
@@ -277,6 +280,14 @@ function populate() {
 function readForm(): ExerciseSpec {
   const result = { ...spec, ...Object.fromEntries(new FormData(form)) } as Record<string, unknown>;
   for (const key of numeric) result[key] = Number(result[key]);
+  if (
+    result.pattern === 'rossini' &&
+    spec.pattern !== 'rossini' &&
+    Number(result.high) - Number(result.low) < 19
+  ) {
+    result.high = Math.min(96, Number(result.low) + 19);
+    result.low = Math.min(Number(result.low), Number(result.high) - 19);
+  }
   result.gate = DEFAULT_SPEC.gate;
   result.noteBeats = DEFAULT_SPEC.noteBeats;
   result.transition = null;

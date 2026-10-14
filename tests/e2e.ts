@@ -31,6 +31,7 @@ try {
   assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio (Ascending)');
   assert.deepEqual(await page.locator('#pattern option').allTextContents(), [
     'Arpeggio',
+    'Rossini Scale',
     'Major Scale',
   ]);
   assert.deepEqual(await page.locator('#direction label span').allTextContents(), [

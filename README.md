@@ -28,7 +28,7 @@ No account, API key, microphone access, or hosted service is required. CC BY 4.0
 
 ## Practice
 
-- Two exercises: **Arpeggio** (default) and **Major Scale**. Both offer **Ascending** and **Descending** directions.
+- Three exercises: **Arpeggio** (default), **Rossini Scale**, and **Major Scale**. Arpeggio and Major Scale offer **Ascending** and **Descending** directions; Rossini has a fixed rise-and-return phrase.
 - Choose your lowest/highest vocal notes and direction. Major Scale also lets you choose a key; Arpeggio moves by semitone through your range.
 - Transpose the key and range together with the minus/plus buttons.
 - Adjust tempo (30–240 BPM), rounds, inter-round rests, count-in, note length, articulation, volume, and the sampled Steinway Grand or optional sine/triangle guide sounds. All beats are quarter-note beats. The default count-in is two bars of 4/4 (eight beats), displayed as two labeled four-beat groups with the active beat highlighted and each downbeat accented.
@@ -80,9 +80,11 @@ All runtime dependency versions are pinned by `package-lock.json`. The app does 
 
 **Arpeggio** generates a reusable vocal phrase and shifts it one semitone at a time through your range. Ascending uses 1–3–5–4–3–2–1 twice; descending uses 5–3–1–2–3–4–5 twice, sharing the middle endpoint. A range of at least a perfect fifth is required. Rounds repeat the full sweep; rests separate phrases. Starting-note chords are optional and can include accompaniment below your vocal range.
 
+**Rossini Scale** uses the fixed sequence 1–3–5–8–10–12–11–9–7–5–4–2–1, with regular beats and a held final note. It shifts upward by semitone between rounds, fitting the entire melody within the chosen range. It needs at least 19 semitones; selecting it expands a smaller range to fit. Direction is hidden and ignored for this exercise. Starting chords, repeats, count-in, rests, and tempo remain available.
+
 **Major Scale** generates the selected key's scale notes within your range, ascending or descending. Rounds repeat that scale, with the configured rest between rounds.
 
-Both exercises use the tempo, fixed exercise timing, natural articulation, count-in, rounds, volume, and export settings. Older saved exercise types are mapped to these two choices; the former combined up-and-down direction maps to ascending.
+All exercises use the tempo, fixed exercise timing, natural articulation, count-in, rounds, volume, and export settings. Older saved exercise types are mapped to Arpeggio or Major Scale; the former combined up-and-down direction maps to ascending.
 
 ## bitKlavier Grand
 

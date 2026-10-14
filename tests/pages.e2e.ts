@@ -79,6 +79,23 @@ try {
   const download = await downloadPromise;
   const midi = await readFile((await download.path())!);
   assert.equal(midi.toString('ascii', 0, 4), 'MThd');
+  await page.locator('#pattern').selectOption('rossini');
+  assert.equal(await page.locator('#exercise-title').textContent(), 'Rossini Scale');
+  assert.ok(await page.locator('#direction').isHidden());
+  assert.ok(await page.locator('#form-error').isHidden());
+  assert.ok(
+    Number(await page.locator('#high').inputValue()) -
+      Number(await page.locator('#low').inputValue()) >=
+      19
+  );
+  const rossiniDownloadPromise = page.waitForEvent('download');
+  await page.locator('#midi-download').click();
+  const rossiniDownload = await rossiniDownloadPromise;
+  assert.ok(
+    (await readFile((await rossiniDownload.path())!)).includes(Buffer.from('Rossini Scale'))
+  );
+  await page.locator('#pattern').selectOption('arpeggio');
+  assert.ok(await page.locator('#direction').isVisible());
   // A phone gets a taller, fully fitted keyboard; desktop keeps the video layout.
   await page.setViewportSize({ width: 320, height: 720 });
   await page.waitForFunction(() => {

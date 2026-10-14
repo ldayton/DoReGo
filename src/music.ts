@@ -4,6 +4,11 @@ export const PATTERNS = {
     intervals: [0, 4, 7],
     description: 'A vocal arpeggio phrase, moving one semitone at a time.',
   },
+  rossini: {
+    name: 'Rossini Scale',
+    intervals: [0, 4, 7, 12, 16, 19, 17, 14, 11, 7, 5, 2, 0],
+    description: 'The Rossini arpeggio and descending return, moving one semitone per round.',
+  },
   major: {
     name: 'Major Scale',
     intervals: [0, 2, 4, 5, 7, 9, 11],
@@ -12,7 +17,7 @@ export const PATTERNS = {
 } as const;
 export type Pattern = keyof typeof PATTERNS;
 export function isVocalPattern(pattern: Pattern) {
-  return pattern === 'arpeggio';
+  return pattern === 'arpeggio' || pattern === 'rossini';
 }
 export type Direction = 'up' | 'down';
 export type Voice = 'bitklavier';
@@ -146,7 +151,7 @@ export function validateSpec(input: unknown): ExerciseSpec {
     if (typeof s[key] !== 'boolean') throw new Error(`Invalid ${key}.`);
   const result: ExerciseSpec = {
     pattern: s.pattern as Pattern,
-    direction: s.direction as Direction,
+    direction: s.pattern === 'rossini' ? 'up' : (s.direction as Direction),
     voice: s.voice as Voice,
     key: num('key', 0, 11, true),
     low: num('low', 24, 96, true),
@@ -210,19 +215,29 @@ export function generateExercise(input: unknown): Exercise {
   return { spec, notes, totalBeats, phraseBeats, pitches, rounds };
 }
 function generateVocalExercise(spec: ExerciseSpec): Exercise {
-  const descending = spec.direction === 'down';
-  if (spec.high - spec.low < 7)
+  const rossini = spec.pattern === 'rossini';
+  const span = rossini ? 19 : 7;
+  const descending = !rossini && spec.direction === 'down';
+  if (spec.high - spec.low < span)
     throw new Error(
-      'These vocal phrases need a range of at least seven semitones (a perfect fifth).'
+      rossini
+        ? 'Rossini Scale needs a range of at least an octave and a fifth (19 semitones).'
+        : 'These vocal phrases need a range of at least seven semitones (a perfect fifth).'
     );
-  const offsets = descending
-    ? [0, -3, -7, -5, -3, -2, 0, -3, -7, -5, -3, -2, 0]
-    : [0, 4, 7, 5, 4, 2, 0, 4, 7, 5, 4, 2, 0];
-  const lengths = [2, 2, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 2];
+  const offsets = rossini
+    ? PATTERNS.rossini.intervals
+    : descending
+      ? [0, -3, -7, -5, -3, -2, 0, -3, -7, -5, -3, -2, 0]
+      : [0, 4, 7, 5, 4, 2, 0, 4, 7, 5, 4, 2, 0];
+  const lengths = rossini
+    ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+    : [2, 2, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 2];
   const roots: number[] = [];
-  if (descending) for (let root = spec.high; root >= spec.low + 7; root--) roots.push(root);
-  else for (let root = spec.low; root <= spec.high - 7; root++) roots.push(root);
-  const phraseLength = (18 + (spec.startingChords ? 6 : 0)) * spec.noteBeats;
+  if (descending) for (let root = spec.high; root >= spec.low + span; root--) roots.push(root);
+  else for (let root = spec.low; root <= spec.high - span; root++) roots.push(root);
+  const phraseLength =
+    (lengths.reduce((sum, length) => sum + length, 0) + (spec.startingChords ? 6 : 0)) *
+    spec.noteBeats;
   const phraseBeats = roots.length * phraseLength + (roots.length - 1) * spec.restBeats;
   const totalBeats =
     spec.countIn + spec.repetitions * phraseBeats + (spec.repetitions - 1) * spec.restBeats;
@@ -295,7 +310,9 @@ function generateVocalExercise(spec: ExerciseSpec): Exercise {
     totalBeats,
     phraseBeats,
     pitches: [...new Set(notes.map((n) => n.midi))].sort((a, b) => a - b),
-    title: `${PATTERNS[spec.pattern].name} (${descending ? 'Descending' : 'Ascending'})`,
+    title: rossini
+      ? 'Rossini Scale'
+      : `${PATTERNS[spec.pattern].name} (${descending ? 'Descending' : 'Ascending'})`,
   };
 }
 export function stateAt(exercise: Exercise, seconds: number): Scene {

@@ -13,10 +13,10 @@ import {
 } from '../src/music';
 import { Midi, exportMidi } from '../src/midi';
 
-test('only Arpeggio and Major Scale are offered, with ascending Arpeggio as the default', () => {
+test('exercise choices include Rossini Scale, with ascending Arpeggio as the default', () => {
   assert.deepEqual(
     Object.values(PATTERNS).map((p) => p.name),
-    ['Arpeggio', 'Major Scale']
+    ['Arpeggio', 'Rossini Scale', 'Major Scale']
   );
   assert.equal(DEFAULT_SPEC.pattern, 'arpeggio');
   assert.equal(DEFAULT_SPEC.direction, 'up');
@@ -225,4 +225,41 @@ test('each complete scale round has one practice target regardless of its indivi
   assert.equal(e.rounds.length, 2);
   assert.equal(practiceAt(e, secondsAt(3, 120)).current.midi, 72);
   assert.equal(practiceAt(e, secondsAt(3, 120)).next?.midi, 72);
+});
+
+test('Rossini matches the supplied pitches and ignores direction, with roots fitting the range', () => {
+  const input = {
+    ...DEFAULT_SPEC,
+    pattern: 'rossini',
+    low: 56,
+    high: 76,
+    countIn: 0,
+    repetitions: 2,
+    restBeats: 2,
+    startingChords: false,
+  };
+  const exercise = generateExercise(input);
+  assert.equal(exercise.title, 'Rossini Scale');
+  assert.deepEqual(
+    exercise.notes.slice(0, 13).map((note) => note.midi),
+    [56, 60, 63, 68, 72, 75, 73, 70, 67, 63, 61, 58, 56]
+  );
+  assert.deepEqual(
+    exercise.rounds.map((round) => round.midi),
+    [56, 57, 56, 57]
+  );
+  assert.deepEqual(generateExercise({ ...input, direction: 'down' }), exercise);
+  assert.ok(exercise.notes.every((note) => note.midi >= 56 && note.midi <= 76));
+  assert.equal(practiceAt(exercise, 1).current.midi, 56);
+  const midi = new Midi(exportMidi(exercise));
+  assert.deepEqual(
+    midi.tracks[0].notes.slice(0, 13).map((note) => note.midi),
+    exercise.notes.slice(0, 13).map((note) => note.midi)
+  );
+  assert.throws(() => generateExercise({ ...input, high: 74 }), /octave and a fifth/);
+  const withChords = generateExercise({ ...input, startingChords: true });
+  assert.deepEqual(
+    withChords.guideNotes!.slice(2, 15).map((note) => note.midi),
+    exercise.notes.slice(0, 13).map((note) => note.midi)
+  );
 });
