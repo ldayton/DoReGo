@@ -31,7 +31,7 @@ import {
   type ExerciseSpec,
 } from './music';
 import { Player, RELEASE_TAIL } from './audio';
-import { drawExercise, WIDTH, HEIGHT } from './render';
+import { drawExercise, WIDTH, HEIGHT, MOBILE_HEIGHT } from './render';
 import { exportMidi } from './midi';
 import './style.css';
 
@@ -179,6 +179,23 @@ $('#app').innerHTML = `
 const canvas = $<HTMLCanvasElement>('#stage');
 canvas.width = WIDTH;
 canvas.height = HEIGHT;
+const mobileQuery = window.matchMedia('(max-width: 760px)');
+let mobileStage = false;
+function resizeStage() {
+  mobileStage =
+    mobileQuery.matches && (!document.fullscreenElement || window.innerHeight >= window.innerWidth);
+  canvas.width = mobileStage
+    ? Math.min(
+        WIDTH,
+        Math.max(320, Math.round(canvas.clientWidth * (window.devicePixelRatio || 1)))
+      )
+    : WIDTH;
+  canvas.height = mobileStage ? Math.round((canvas.width * MOBILE_HEIGHT) / WIDTH) : HEIGHT;
+  canvas.style.aspectRatio = mobileStage ? '1 / 1' : '16 / 9';
+  update();
+}
+window.addEventListener('resize', resizeStage);
+document.addEventListener('fullscreenchange', resizeStage);
 const form = $<HTMLFormElement>('#exercise-form');
 const numeric = [
   'key',
@@ -340,7 +357,7 @@ let announced = '';
 function update() {
   const duration = secondsAt(exercise.totalBeats, spec.bpm);
   const time = mode === 'ready' ? -1 : position;
-  drawExercise(canvas, exercise, time);
+  drawExercise(canvas, exercise, time, mobileStage);
   const scene = stateAt(exercise, time);
   const practice = practiceAt(exercise, time);
   const description =
@@ -644,5 +661,5 @@ $('#cancel-export').addEventListener('click', async () => {
 populate();
 showPresets();
 iconify();
-update();
+resizeStage();
 window.addEventListener('pagehide', () => player.stop());

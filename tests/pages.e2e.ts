@@ -79,6 +79,20 @@ try {
   const download = await downloadPromise;
   const midi = await readFile((await download.path())!);
   assert.equal(midi.toString('ascii', 0, 4), 'MThd');
+  // A phone gets a taller, fully fitted keyboard; desktop keeps the video layout.
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector('#stage') as HTMLCanvasElement;
+    return canvas.width === canvas.height;
+  });
+  const mobile = await page.locator('#stage').boundingBox();
+  assert.ok(mobile && Math.abs(mobile.width - mobile.height) < 2);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector('#stage') as HTMLCanvasElement;
+    return canvas.width === 1600 && canvas.height === 900;
+  });
   assert.deepEqual(errors, []);
   console.log(
     `PASS: ${base} loads with working piano samples, playback, MIDI, credits, and static-only controls.`

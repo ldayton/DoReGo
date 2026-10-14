@@ -36,6 +36,8 @@ No account, API key, microphone access, or hosted service is required. CC BY 4.0
 - Play/pause, scrub, restart, and fullscreen. Space toggles playback, R restarts, F toggles fullscreen when a form control is not focused. Editing settings resets playback so the display and sound use the same exercise.
 - Save and load up to 50 named presets.
 
+On phones, the practice canvas uses a taller layout with larger keys. The keyboard focuses on the current round and includes its full starting chords, even below the selected singing range. Desktop and exported video retain the wide layout.
+
 Note names stay visible for the full rhythmic slot. The highlighted key follows the sounding duration, so detached notes have a short unlit gap. Repeated notes get a fresh progress bar. No pitch detection or singing assessment is implemented.
 
 ## Exports

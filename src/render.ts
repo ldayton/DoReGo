@@ -8,6 +8,8 @@ import {
   type Exercise,
 } from './music';
 
+import { keyboardRange } from './keyboard-layout';
+
 const C = {
   paper: '#faf9f4',
   ink: '#29382b',
@@ -19,6 +21,7 @@ const C = {
 };
 export const WIDTH = 1600;
 export const HEIGHT = 900;
+export const MOBILE_HEIGHT = 1600;
 function rounded(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -55,7 +58,12 @@ function text(
   ctx.textBaseline = 'middle';
   ctx.fillText(value, x, y);
 }
-export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seconds: number) {
+export function drawExercise(
+  canvas: HTMLCanvasElement,
+  exercise: Exercise,
+  seconds: number,
+  mobile = false
+) {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas rendering is unavailable in this browser.');
   const { spec, notes } = exercise;
@@ -71,18 +79,18 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
     for (const n of notes) if (n.onsetBeat === notes[0].onsetBeat) sounding.add(n.midi);
   }
   ctx.save();
-  ctx.scale(canvas.width / WIDTH, canvas.height / HEIGHT);
+  ctx.scale(canvas.width / WIDTH, canvas.height / (mobile ? MOBILE_HEIGHT : HEIGHT));
   ctx.fillStyle = C.paper;
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.fillRect(0, 0, WIDTH, mobile ? MOBILE_HEIGHT : HEIGHT);
   ctx.strokeStyle = '#eef0e7';
   ctx.lineWidth = 1;
   for (let x = 0; x < WIDTH; x += 48) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
-    ctx.lineTo(x, HEIGHT);
+    ctx.lineTo(x, mobile ? MOBILE_HEIGHT : HEIGHT);
     ctx.stroke();
   }
-  for (let y = 0; y < HEIGHT; y += 48) {
+  for (let y = 0; y < (mobile ? MOBILE_HEIGHT : HEIGHT); y += 48) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(WIDTH, y);
@@ -91,13 +99,13 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
   // Soft opaque reading area keeps the note visually quiet.
   ctx.fillStyle = C.paper;
   ctx.fillRect(340, 130, 920, 420);
-  text(ctx, 'DO RE GO', 65, 56, 21, C.ink, 700, 'left');
+  text(ctx, 'DO RE GO', 65, 56, mobile ? 32 : 21, C.ink, 700, 'left');
   text(
     ctx,
     `${exercise.title ?? PATTERNS[spec.pattern].name}  /  ${spec.bpm} BPM`,
     WIDTH - 65,
     56,
-    20,
+    mobile ? 30 : 20,
     C.muted,
     500,
     'right'
@@ -109,15 +117,31 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
     rest: 'REST',
     complete: 'COMPLETE',
   };
-  text(ctx, labels[scene.phase], 800, 155, 19, C.muted, 600);
+  text(ctx, labels[scene.phase], 800, 155, mobile ? 34 : 19, C.muted, 600);
   if (scene.phase === 'countin') {
     const currentBeat = Math.floor(scene.beat),
       currentBar = Math.floor(currentBeat / 4);
     const bars = Math.ceil(spec.countIn / 4);
-    text(ctx, String(scene.count), 800, 295, 174, scene.count === 1 ? C.accent : C.ink, 500);
-    text(ctx, `BAR ${currentBar + 1} OF ${bars} · 4/4`, 800, 399, 22, C.muted, 500);
-    const cardWidth = 264,
-      gap = 20,
+    text(
+      ctx,
+      String(scene.count),
+      800,
+      mobile ? 365 : 295,
+      mobile ? 260 : 174,
+      scene.count === 1 ? C.accent : C.ink,
+      500
+    );
+    text(
+      ctx,
+      `BAR ${currentBar + 1} OF ${bars} · 4/4`,
+      800,
+      mobile ? 510 : 399,
+      mobile ? 34 : 22,
+      C.muted,
+      500
+    );
+    const cardWidth = mobile ? 540 : 264,
+      gap = mobile ? 40 : 20,
       left = 800 - (bars * cardWidth + (bars - 1) * gap) / 2;
     for (let bar = 0; bar < bars; bar++) {
       const x = left + bar * (cardWidth + gap),
@@ -126,9 +150,9 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
       rounded(
         ctx,
         x,
-        432,
+        mobile ? 565 : 432,
         cardWidth,
-        88,
+        mobile ? 145 : 88,
         14,
         active ? '#edf1e3' : C.paper,
         active ? '#acbf86' : C.line
@@ -137,8 +161,8 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
         ctx,
         `BAR ${bar + 1}${complete ? ' · DONE' : active ? ' · NOW' : ''}`,
         x + cardWidth / 2,
-        452,
-        15,
+        mobile ? 601 : 452,
+        mobile ? 26 : 15,
         active ? C.ink : C.muted,
         600
       );
@@ -147,10 +171,10 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
         const absoluteBeat = bar * 4 + beat,
           now = absoluteBeat === currentBeat,
           past = absoluteBeat < currentBeat;
-        const cx = x + cardWidth / 2 + (beat - (beats - 1) / 2) * 48;
+        const cx = x + cardWidth / 2 + (beat - (beats - 1) / 2) * (mobile ? 96 : 48);
         const pulse = now ? 1 - (scene.beat - currentBeat) : 0;
         ctx.beginPath();
-        ctx.arc(cx, 488, 15 + 3 * pulse, 0, Math.PI * 2);
+        ctx.arc(cx, mobile ? 660 : 488, (mobile ? 26 : 15) + 3 * pulse, 0, Math.PI * 2);
         ctx.fillStyle = now ? C.accent : past ? C.green : '#e5e8dd';
         ctx.fill();
         if (beat === 0) {
@@ -162,62 +186,82 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
           ctx,
           String(beat + 1),
           cx,
-          488,
-          16,
+          mobile ? 660 : 488,
+          mobile ? 28 : 16,
           now ? C.white : past ? C.ink : C.muted,
           now ? 700 : 500
         );
       }
     }
   } else if (scene.phase === 'complete') {
-    text(ctx, '✓', 800, 325, 150, '#779c40', 400);
+    text(ctx, '✓', 800, mobile ? 400 : 325, mobile ? 260 : 150, '#779c40', 400);
   }
   // Practice targets are stable for the whole round, independent of sounding notes.
   const compact = scene.phase === 'countin';
   const drawTarget = (round: PracticeRound | null, title: string, x: number, primary: boolean) => {
-    const y = compact ? 557 : 335;
-    text(ctx, title, x, compact ? 531 : 225, compact ? 14 : 20, C.muted, 600);
+    const y = mobile ? (compact ? 825 : 410) : compact ? 557 : 335;
+    text(
+      ctx,
+      title,
+      x,
+      mobile ? (compact ? 770 : 280) : compact ? 531 : 225,
+      mobile ? (compact ? 26 : 36) : compact ? 14 : 20,
+      C.muted,
+      600
+    );
     const label = round
       ? spec.solfege
         ? solfege(round.degree)
         : noteName(round.midi, spec.key)
       : '—';
-    text(ctx, label, x, y, compact ? 28 : primary ? 148 : 94, primary ? C.ink : C.muted, 500);
+    text(
+      ctx,
+      label,
+      x,
+      y,
+      mobile ? (compact ? 48 : primary ? 250 : 180) : compact ? 28 : primary ? 148 : 94,
+      primary ? C.ink : C.muted,
+      500
+    );
     if (round && spec.solfege && !compact)
       text(ctx, noteName(round.midi, spec.key), x, 440, 26, C.muted, 400);
   };
   if (scene.phase !== 'complete') {
-    drawTarget(practice.current, 'CURRENT', compact ? 680 : 650, true);
-    drawTarget(practice.next, 'NEXT', compact ? 920 : 1080, false);
+    drawTarget(practice.current, 'CURRENT', compact ? 680 : mobile ? 520 : 650, true);
+    drawTarget(practice.next, 'NEXT', compact ? 920 : mobile ? 1120 : 1080, false);
     if (!compact) {
-      rounded(ctx, 495, 488, 310, 4, 2, C.line);
-      rounded(ctx, 495, 488, 310 * practice.progress, 4, 2, C.accent);
+      rounded(ctx, 495, mobile ? 600 : 488, 310, 4, 2, C.line);
+      rounded(ctx, 495, mobile ? 600 : 488, 310 * practice.progress, 4, 2, C.accent);
       if (scene.phase === 'ready' && spec.countIn)
         text(
           ctx,
           `${spec.countIn % 4 === 0 ? `${spec.countIn / 4}-bar` : `${spec.countIn}-beat`} count-in`,
           800,
-          558,
-          19,
+          mobile ? 720 : 558,
+          mobile ? 32 : 19,
           C.muted,
           400
         );
       if (scene.phase === 'rest')
-        text(ctx, `Next round in ${scene.count}`, 800, 558, 22, C.muted, 400);
+        text(
+          ctx,
+          `Next round in ${scene.count}`,
+          800,
+          mobile ? 720 : 558,
+          mobile ? 34 : 22,
+          C.muted,
+          400
+        );
     }
   }
-  // Include a small amount of context around the configured range.
-  let low = Math.max(0, Math.min(spec.low - 2, ...exercise.pitches)),
-    high = Math.min(108, spec.high + 2);
-  while ([1, 3, 6, 8, 10].includes(low % 12)) low--;
-  while ([1, 3, 6, 8, 10].includes(high % 12)) high++;
+  const { low, high } = keyboardRange(exercise, practice.current, mobile);
   const whites: number[] = [];
   for (let n = low; n <= high; n++) if (![1, 3, 6, 8, 10].includes(n % 12)) whites.push(n);
-  const width = Math.min(1300, whites.length * 91),
+  const width = Math.min(mobile ? 1480 : 1300, whites.length * (mobile ? 120 : 91)),
     x0 = (WIDTH - width) / 2,
     keyW = width / whites.length,
-    y0 = 637,
-    keyH = 170;
+    y0 = mobile ? 930 : 637,
+    keyH = mobile ? 500 : 170;
   rounded(ctx, x0 - 8, y0 - 8, width + 16, keyH + 16, 16, '#dde1d6');
   for (const [i, n] of whites.entries()) {
     const active = sounding.has(n);
@@ -237,8 +281,8 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
         ctx,
         noteName(n, spec.key),
         x0 + (i + 0.5) * keyW,
-        y0 + keyH - 25,
-        Math.min(18, keyW * 0.3),
+        y0 + keyH - (mobile ? 48 : 25),
+        Math.min(mobile ? 42 : 18, keyW * (mobile ? 0.48 : 0.3)),
         active ? C.ink : C.muted,
         active ? 700 : 400
       );
@@ -277,8 +321,8 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
     ctx,
     `${noteName(spec.low, spec.key)} — ${noteName(spec.high, spec.key)}`,
     65,
-    858,
-    17,
+    mobile ? 1530 : 858,
+    mobile ? 30 : 17,
     C.muted,
     500,
     'left'
@@ -286,9 +330,9 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
   text(
     ctx,
     `${Math.min(notes.length, scene.note ? scene.note.id + 1 : scene.phase === 'complete' ? notes.length : notes.filter((n) => n.onsetBeat < scene.beat).length)} / ${notes.length} notes`,
-    WIDTH - 65,
-    858,
-    17,
+    WIDTH - (mobile ? 180 : 65),
+    mobile ? 1530 : 858,
+    mobile ? 30 : 17,
     C.muted,
     500,
     'right'
