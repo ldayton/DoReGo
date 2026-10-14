@@ -22,7 +22,6 @@ import {
   isVocalPattern,
   vocalSpan,
   PATTERNS,
-  SHARPS,
   generateExercise,
   noteName,
   secondsAt,
@@ -125,6 +124,16 @@ function restoreSpec(input: unknown): ExerciseSpec {
   else if (['minor', 'pentatonic', 'fiveTone', 'chromatic'].includes(String(saved.pattern)))
     saved.pattern = 'major';
   if (saved.direction === 'updown') saved.direction = 'up';
+  if (saved.pattern === 'major') {
+    const down = saved.direction === 'down';
+    const start = Math.max(
+      down ? 36 : 24,
+      Math.min(down ? 96 : 84, Number(down ? saved.high : saved.low))
+    );
+    saved.key = start % 12;
+    saved.low = down ? start - 12 : start;
+    saved.high = down ? start : start + 12;
+  }
   return generateExercise(saved).spec;
 }
 
@@ -145,10 +154,15 @@ $('#app').innerHTML = `
             .map(([id, p]) => `<option value="${id}">${p.name}</option>`)
             .join('')}</select></label>
 
-          <label class="field">Key<select name="key" id="key">${SHARPS.map((n, i) => `<option value="${i}">${n}</option>`).join('')}</select></label>
+          <label class="field">Key<select name="startingNote" id="key">${Array.from(
+            { length: 73 },
+            (_, i) => i + 24
+          )
+            .map((midi) => `<option value="${midi}">${noteName(midi)}</option>`)
+            .join('')}</select></label>
           <fieldset id="direction" class="direction-field"><legend>Direction</legend><div class="direction-toggle"><label><input type="radio" name="direction" value="up" /><i data-lucide="arrow-up-right"></i><span>Ascending</span></label><label><input type="radio" name="direction" value="down" /><i data-lucide="arrow-down-right"></i><span>Descending</span></label></div></fieldset>
-          <div class="range-label"><span>Range</span><span class="range-actions"><button type="button" id="transpose-down" title="Move range and key down one semitone" aria-label="Transpose down one semitone"><i data-lucide="minus"></i></button><button type="button" id="transpose-up" title="Move range and key up one semitone" aria-label="Transpose up one semitone"><i data-lucide="plus"></i></button></span></div>
-          <div class="field-row">${(['low', 'high'] as const).map((id) => `<div class="field small-label"><span>${id === 'low' ? 'Lowest' : 'Highest'}</span><div class="note-spinner"><button type="button" data-note="${id}" data-step="-1" aria-label="Decrease ${id === 'low' ? 'lowest' : 'highest'} note"><i data-lucide="minus"></i></button><span id="${id}-spin" class="note-value" role="spinbutton" tabindex="0" aria-label="${id === 'low' ? 'Lowest' : 'Highest'} note" aria-valuemin="24" aria-valuemax="96"></span><button type="button" data-note="${id}" data-step="1" aria-label="Increase ${id === 'low' ? 'lowest' : 'highest'} note"><i data-lucide="plus"></i></button><input type="hidden" name="${id}" id="${id}" /></div></div>`).join('')}</div>
+          <div id="range-heading" class="range-label"><span>Range</span><span class="range-actions"><button type="button" id="transpose-down" title="Move range and key down one semitone" aria-label="Transpose down one semitone"><i data-lucide="minus"></i></button><button type="button" id="transpose-up" title="Move range and key up one semitone" aria-label="Transpose up one semitone"><i data-lucide="plus"></i></button></span></div>
+          <div id="note-range" class="field-row">${(['low', 'high'] as const).map((id) => `<div class="field small-label"><span>${id === 'low' ? 'Lowest' : 'Highest'}</span><div class="note-spinner"><button type="button" data-note="${id}" data-step="-1" aria-label="Decrease ${id === 'low' ? 'lowest' : 'highest'} note"><i data-lucide="minus"></i></button><span id="${id}-spin" class="note-value" role="spinbutton" tabindex="0" aria-label="${id === 'low' ? 'Lowest' : 'Highest'} note" aria-valuemin="24" aria-valuemax="96"></span><button type="button" data-note="${id}" data-step="1" aria-label="Increase ${id === 'low' ? 'lowest' : 'highest'} note"><i data-lucide="plus"></i></button><input type="hidden" name="${id}" id="${id}" /></div></div>`).join('')}</div>
           <div class="tempo-label"><label for="bpm">Tempo</label><span><input name="bpm" id="bpm" type="number" min="30" max="240" step="1" aria-label="Tempo in beats per minute"/><span>BPM</span></span></div>
           <input id="tempo-slider" type="range" min="30" max="240" step="1" aria-label="Tempo slider" />
           <details class="more-settings"><summary>More options <i data-lucide="chevron-down"></i></summary><div class="advanced"><label id="starting-chords-field" class="toggle-row" hidden><span>Starting-note chords</span><input name="startingChords" id="startingChords" type="checkbox" role="switch" checked /></label>
@@ -275,6 +289,13 @@ function populate() {
     element.disabled = vocal;
     element.closest('.field')!.classList.toggle('vocal-hidden', vocal);
   }
+  const keySelect = $<HTMLSelectElement>('#key');
+  keySelect.value = String(spec.direction === 'down' ? spec.high : spec.low);
+  for (const option of keySelect.options)
+    option.disabled =
+      spec.direction === 'down' ? Number(option.value) < 36 : Number(option.value) > 84;
+  $('#range-heading').hidden = !vocal;
+  $('#note-range').hidden = !vocal;
   $('#starting-chords-field').hidden = !vocal;
   $<HTMLInputElement>('#startingChords').checked = spec.startingChords ?? true;
 }
@@ -289,6 +310,16 @@ function readForm(): ExerciseSpec {
     const span = vocalSpan(result.pattern as ExerciseSpec['pattern']);
     result.high = Math.min(96, Number(result.low) + span);
     result.low = Math.min(Number(result.low), Number(result.high) - span);
+  }
+  if (result.pattern === 'major') {
+    const down = result.direction === 'down';
+    const startingNote = Math.max(
+      down ? 36 : 24,
+      Math.min(down ? 96 : 84, Number(result.startingNote ?? (down ? result.high : result.low)))
+    );
+    result.key = startingNote % 12;
+    result.low = down ? startingNote - 12 : startingNote;
+    result.high = down ? startingNote : startingNote + 12;
   }
   result.gate = DEFAULT_SPEC.gate;
   result.noteBeats = DEFAULT_SPEC.noteBeats;

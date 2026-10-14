@@ -16,7 +16,7 @@ import { Midi, exportMidi } from '../src/midi';
 test('exercise choices include Rossini Scale, with ascending Arpeggio as the default', () => {
   assert.deepEqual(
     Object.values(PATTERNS).map((p) => p.name),
-    ['Arpeggio & Scale', 'Five-Note Scale', 'Octave Arpeggio', 'Rossini Scale', 'Major Scale']
+    ['Arpeggio & Scale', 'Octave Arpeggio', 'Rossini Scale', 'Five-Note Scale', 'Major Scale']
   );
   assert.equal(DEFAULT_SPEC.pattern, 'arpeggio');
   assert.equal(DEFAULT_SPEC.direction, 'up');

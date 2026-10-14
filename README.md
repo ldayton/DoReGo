@@ -28,8 +28,8 @@ No account, API key, microphone access, or hosted service is required. CC BY 4.0
 
 ## Practice
 
-- Five exercises: **Arpeggio & Scale** (default), **Five-Note Scale**, **Octave Arpeggio**, **Rossini Scale**, and **Major Scale**. All except Rossini offer **Ascending** and **Descending** directions; Rossini has a fixed rise-and-return phrase.
-- Choose your lowest/highest vocal notes and direction. Major Scale also lets you choose a key; the other exercises move by semitone through your range.
+- Five exercises: **Arpeggio & Scale** (default), **Octave Arpeggio**, **Rossini Scale**, **Five-Note Scale**, and **Major Scale**. All except Rossini offer **Ascending** and **Descending** directions; Rossini has a fixed rise-and-return phrase.
+- Choose your lowest/highest vocal notes and direction. Major Scale instead uses a single Key selector for the starting note, including its octave; the other exercises move by semitone through your range.
 - Transpose the key and range together with the minus/plus buttons.
 - Adjust tempo (30–240 BPM), rounds, inter-round rests, count-in, and volume. Sound uses the sampled bitKlavier Steinway Grand with fixed natural articulation. All beats are quarter-note beats. The default count-in is two bars of 4/4 (eight beats), displayed as two labeled four-beat groups with the active beat highlighted and each downbeat accented.
 - Optional metronome.
@@ -84,7 +84,7 @@ All runtime dependency versions are pinned by `package-lock.json`. The app does 
 
 **Rossini Scale** uses the fixed sequence 1–3–5–8–10–12–11–9–7–5–4–2–1, with regular beats and a held final note. It shifts upward by semitone between rounds, fitting the entire melody within the chosen range. It needs at least 19 semitones; selecting it expands a smaller range to fit. Direction is hidden and ignored for this exercise. Starting chords, repeats, count-in, rests, and tempo remain available.
 
-**Major Scale** generates the selected key's scale notes within your range, ascending or descending. Rounds repeat that scale, with the configured rest between rounds.
+**Major Scale** uses Key as its starting note and generates one octave ascending or descending, without lowest/highest controls. Rounds repeat that scale, with the configured rest between rounds.
 
 All exercises use the tempo, fixed exercise timing, natural articulation, count-in, rounds, volume, and export settings. Older saved exercise types are mapped to Arpeggio & Scale or Major Scale; the former combined up-and-down direction maps to ascending.
 

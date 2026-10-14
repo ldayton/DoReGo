@@ -4,11 +4,6 @@ export const PATTERNS = {
     intervals: [0, 4, 7],
     description: 'An arpeggio with a stepwise return, moving one semitone per round.',
   },
-  fiveNote: {
-    name: 'Five-Note Scale',
-    intervals: [0, 2, 4, 5, 7, 5, 4, 2, 0],
-    description: 'A five-note major scale out and back, moving one semitone per round.',
-  },
   octaveArpeggio: {
     name: 'Octave Arpeggio',
     intervals: [0, 4, 7, 12, 7, 4, 0],
@@ -18,6 +13,11 @@ export const PATTERNS = {
     name: 'Rossini Scale',
     intervals: [0, 4, 7, 12, 16, 19, 17, 14, 11, 7, 5, 2, 0],
     description: 'The Rossini arpeggio and descending return, moving one semitone per round.',
+  },
+  fiveNote: {
+    name: 'Five-Note Scale',
+    intervals: [0, 2, 4, 5, 7, 5, 4, 2, 0],
+    description: 'A five-note major scale out and back, moving one semitone per round.',
   },
   major: {
     name: 'Major Scale',

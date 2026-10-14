@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { Midi } from '../src/midi';
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -115,6 +116,35 @@ try {
   }
   await page.reload();
   assert.equal(await page.locator('#pattern').inputValue(), 'octaveArpeggio');
+  assert.deepEqual(await page.locator('#pattern option').allTextContents(), [
+    'Arpeggio & Scale',
+    'Octave Arpeggio',
+    'Rossini Scale',
+    'Five-Note Scale',
+    'Major Scale',
+  ]);
+  await page.locator('#pattern').selectOption('major');
+  assert.ok(await page.locator('#note-range').isHidden());
+  assert.ok(await page.locator('#range-heading').isHidden());
+  assert.ok(await page.locator('#key').isVisible());
+  for (const direction of ['up', 'down']) {
+    await page.locator(`input[name="direction"][value="${direction}"]`).check();
+    await page.locator('#key').selectOption('62');
+    assert.equal(await page.locator('#low').inputValue(), direction === 'up' ? '62' : '50');
+    assert.equal(await page.locator('#high').inputValue(), direction === 'up' ? '74' : '62');
+    const downloadEvent = page.waitForEvent('download');
+    await page.locator('#midi-download').click();
+    const midi = new Midi(await readFile((await (await downloadEvent).path())!));
+    assert.deepEqual(
+      midi.tracks[0].notes.slice(0, 8).map((n) => n.midi),
+      direction === 'up' ? [62, 64, 66, 67, 69, 71, 73, 74] : [62, 61, 59, 57, 55, 54, 52, 50]
+    );
+  }
+  await page.reload();
+  assert.equal(await page.locator('#key').inputValue(), '62');
+  assert.ok(await page.locator('#note-range').isHidden());
+  await page.locator('#pattern').selectOption('arpeggio');
+  assert.ok(await page.locator('#note-range').isVisible());
   // A phone gets a taller, fully fitted keyboard; desktop keeps the video layout.
   await page.setViewportSize({ width: 320, height: 720 });
   await page.waitForFunction(() => {

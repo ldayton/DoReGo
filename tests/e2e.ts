@@ -31,9 +31,9 @@ try {
   assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio & Scale (Ascending)');
   assert.deepEqual(await page.locator('#pattern option').allTextContents(), [
     'Arpeggio & Scale',
-    'Five-Note Scale',
     'Octave Arpeggio',
     'Rossini Scale',
+    'Five-Note Scale',
     'Major Scale',
   ]);
   assert.deepEqual(await page.locator('#direction label span').allTextContents(), [
@@ -70,7 +70,7 @@ try {
   await page.locator('#fullscreen').click();
   await page.waitForFunction(() => !document.fullscreenElement);
   await page.locator('#transpose-up').click();
-  assert.equal(await page.locator('#key').inputValue(), '1');
+  assert.equal(await page.locator('#low').inputValue(), '61');
   assert.equal(await page.locator('#low').inputValue(), '61');
   await page.locator('#pattern').selectOption('major');
   assert.equal(await page.locator('#pattern').inputValue(), 'major');
@@ -99,6 +99,7 @@ try {
   );
   await page.screenshot({ path: new URL('mobile.png', work).pathname, fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.locator('#pattern').selectOption('arpeggio');
   await setNote('low', 84);
   assert.ok(await page.locator('#form-error').isVisible());
   assert.ok(await page.locator('#play').isDisabled());
@@ -193,7 +194,7 @@ try {
     voice: 'bitklavier' as const,
     pattern: 'major',
     low: 60,
-    high: 64,
+    high: 72,
     direction: 'up',
     bpm: 240,
     countIn: 2,
