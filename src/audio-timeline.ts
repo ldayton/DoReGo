@@ -1,0 +1,42 @@
+import { secondsAt, metronomeBeat, type Exercise } from './music';
+
+export type AudioEvent = {
+  kind: 'note' | 'click';
+  time: number;
+  duration: number;
+  elapsed: number;
+  frequency: number;
+  velocity: number;
+};
+// Relative to the seek position, with an offset into an already-sounding note.
+export function audioEvents(exercise: Exercise, offset: number): AudioEvent[] {
+  const { bpm, countIn, metronome } = exercise.spec;
+  const events: AudioEvent[] = [];
+  for (const note of exercise.notes) {
+    const start = secondsAt(note.onsetBeat, bpm);
+    const end = secondsAt(note.onsetBeat + note.durationBeats, bpm);
+    if (end <= offset) continue;
+    events.push({
+      kind: 'note',
+      time: Math.max(0, start - offset),
+      duration: end - Math.max(start, offset),
+      elapsed: Math.max(0, offset - start),
+      frequency: 440 * 2 ** ((note.midi - 69) / 12),
+      velocity: note.velocity ?? 0.7,
+    });
+  }
+  for (let beat = 0; beat < exercise.totalBeats; beat++) {
+    const time = secondsAt(beat, bpm);
+    if (time < offset || (beat >= countIn && !metronome)) continue;
+    const click = metronomeBeat(beat, countIn);
+    events.push({
+      kind: 'click',
+      time: time - offset,
+      duration: 0.025,
+      elapsed: 0,
+      frequency: click.frequency,
+      velocity: click.velocity,
+    });
+  }
+  return events.sort((a, b) => a.time - b.time);
+}

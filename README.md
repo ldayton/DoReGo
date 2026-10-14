@@ -24,7 +24,7 @@ npm run build
 npm start
 ```
 
-No account, API key, microphone access, or hosted service is required. Public-domain AKAI Splendid Grand Piano (Steinway) recordings are bundled locally in public/samples/steinway. Dependencies and Chromium need to be downloaded once during setup. Presets and your latest exercise live in this browser's local storage; exported video files temporarily live on this computer.
+No account, API key, microphone access, or hosted service is required. CC BY 4.0 bitKlavier Grand Steinway D recordings are bundled locally in public/samples/bitklavier. Dependencies and Chromium need to be downloaded once during setup. Presets and your latest exercise live in this browser's local storage; exported video files temporarily live on this computer.
 
 ## Practice
 
@@ -34,7 +34,7 @@ No account, API key, microphone access, or hosted service is required. Public-do
 - Adjust tempo (30–240 BPM), rounds, inter-round rests, count-in, note length, articulation, volume, and the sampled Steinway Grand or optional sine/triangle guide sounds. All beats are quarter-note beats. The default count-in is two bars of 4/4 (eight beats), displayed as two labeled four-beat groups with the active beat highlighted and each downbeat accented.
 - Optional metronome, movable-do syllables, and a personal register-transition marker. The marker is a reference you place, not an inferred physiological boundary.
 - Play/pause, scrub, restart, and fullscreen. Space toggles playback, R restarts, F toggles fullscreen when a form control is not focused. Editing settings resets playback so the display and sound use the same exercise.
-- Save and load up to 50 named presets. The two exercise cards provide quick starting points.
+- Save and load up to 50 named presets.
 
 Note names stay visible for the full rhythmic slot. The highlighted key follows the sounding duration, so detached notes have a short unlit gap. Repeated notes get a fresh progress bar. No pitch detection or singing assessment is implemented.
 
@@ -54,7 +54,7 @@ Browser visuals update on animation frames. Exported visuals are quantized to vi
 
 - `stateAt(exercise, seconds)` computes count-in, current note, upcoming notes, rest, and completion at any time.
 - `src/render.ts` draws that state to Canvas without wall-clock reads, accumulated animation state, or random effects. The practice UI and headless export use the same function.
-- `src/audio.ts` uses Tone.js and an explicit AudioContext epoch. Pause/resume reconstructs future sound from a playback offset; notes spanning a seek are clipped. Offline audio uses the same scheduling function and encodes PCM WAV.
+- `src/audio.ts` uses Tone.js and an explicit AudioContext epoch. Live playback schedules one second ahead at 100 ms intervals in a playback-latency context. Pause/resume retains the position within a piano sample; stopping fades out over 20 ms. Native buffer sources handle piano envelopes, stop times, and cleanup on the audio clock. Output timestamps align the live display with the device clock where supported. A final limiter protects loud chord sums. Offline audio uses the same scheduling function and encodes PCM WAV.
 - `src/midi.ts` converts beats to the MIDI library's PPQ and writes a file with Tonejs/Midi.
 - `server/exporter.ts` runs an isolated Playwright page, renders WAV, streams exact-time Canvas frames to FFmpeg while honoring stream backpressure, checks the encoder exit status, and cleans up temporary audio. The browser page never needs to access arbitrary files or URLs.
 - `server/index.ts` supplies the local API, input validation, loopback binding, host/origin checks, and Vite development middleware or built static assets.
@@ -80,8 +80,16 @@ All runtime dependency versions are pinned by `package-lock.json`. The app does 
 
 **Major Scale** generates the selected key's scale notes within your range, ascending or descending. Rounds repeat that scale, with the configured rest between rounds.
 
-Both exercises use the tempo, note length, articulation, count-in, rounds, sound, volume, and export settings. Older saved exercise types are mapped to these two choices; the former combined up-and-down direction maps to ascending.
+Both exercises use the tempo, note length, articulation, count-in, rounds, volume, and export settings. Older saved exercise types are mapped to these two choices; the former combined up-and-down direction maps to ascending.
 
-### Steinway grand recordings
+## bitKlavier Grand
 
-The default piano is sampled from **AKAI Splendid Grand Piano**, identified by SFZ Instruments as a Steinway piano released into the public domain: https://sfzinstruments.github.io/pianos/splendid_grand_piano/. The source key ranges and four velocity layers are mapped in `src/steinway-samples.ts`; recordings and attribution are bundled in `public/samples/steinway/`. The app loads only the samples needed by the current exercise, caches decoded buffers for reuse, and waits for them before starting its audio clock. Playback and offline video audio use the same recordings and sampler. Missing samples produce an error, never a synthesized substitute. `node scripts/setup-steinway.mjs` can restore the pinned sample assets.
+The only supported sound is bitKlavier Grand Piano Bar (Steinway D). Older saved sound choices are automatically migrated to bitKlavier. Main sustained recordings retain all 16 velocity layers and stereo 44.1 kHz / 16-bit resolution, losslessly converted to FLAC. Only the samples needed by an exercise load into memory. The browser adaptation uses nearest sampled pitches, equal velocity zones, and an envelope release; it does not implement the original instrument's pedal, sympathetic resonance, or release samples. Playback and video export use the same adaptation.
+
+Source and full credits: https://bitklavier.com/the-bitklavier-grand/ . Recorded by Andres Villalta, played by Matt Wang, produced by Dan Trueman. Licensed CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ . Attribution and transformation details are bundled in `public/samples/bitklavier/NOTICE.txt` and linked from Help.
+
+Rebuild the assets with `python3 scripts/setup-bitklavier.py` (requires FFmpeg; downloads the approximately 1 GB source archive into ignored `work/`).
+
+### Audio reliability checks
+
+`npm run test:audio` instruments live browser playback of a wide-range bitKlavier exercise at full volume. It checks bounded source count, sample tail memory retention, native scheduling through a 400 ms main-thread stall, non-silent output without clipping, and silent cleanup after pause. The sample loader limits concurrent decodes to four, retains only the duration needed by each exercise (including pitch shift and release), reloads longer samples when necessary, and evicts unused cached data above 128 MiB. An exercise that itself needs more than that budget keeps its required samples. Original recordings remain unchanged. Tests cannot certify the absence of glitches at physical speakers or external audio devices.

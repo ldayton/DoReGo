@@ -8,6 +8,7 @@ import {
   noteName,
   secondsAt,
   stateAt,
+  practiceAt,
   validateSpec,
 } from '../src/music';
 import { Midi, exportMidi } from '../src/midi';
@@ -186,4 +187,42 @@ test('note labels use standard MIDI middle C', () => {
   assert.equal(noteName(60), 'C4');
   assert.equal(noteName(61), 'C♯4');
   assert.equal(noteName(70, 5), 'B♭4');
+});
+test('practice targets stay fixed through chords and melody and advance only at round boundaries', () => {
+  for (const direction of ['up', 'down'] as const) {
+    const e = generateExercise({
+      ...DEFAULT_SPEC,
+      direction,
+      low: 60,
+      high: 68,
+      countIn: 8,
+      repetitions: 1,
+      restBeats: 2,
+      bpm: 120,
+    });
+    const first = direction === 'up' ? 60 : 68,
+      second = direction === 'up' ? 61 : 67;
+    for (const beat of [0, 8, 10, 14, 16, 20, 31.99, 32, 33.99]) {
+      const p = practiceAt(e, secondsAt(beat, 120));
+      assert.equal(p.current.midi, first, `beat ${beat}`);
+      assert.equal(p.next?.midi, second);
+    }
+    assert.notEqual(stateAt(e, secondsAt(16, 120)).note?.midi, first);
+    assert.equal(practiceAt(e, secondsAt(34, 120)).current.midi, second);
+    assert.equal(practiceAt(e, secondsAt(e.totalBeats, 120)).next, null);
+    assert.deepEqual(practiceAt(e, secondsAt(10, 120)), practiceAt(e, secondsAt(10, 120)));
+  }
+});
+test('each complete scale round has one practice target regardless of its individual notes', () => {
+  const e = generateExercise({
+    ...DEFAULT_SPEC,
+    pattern: 'major',
+    direction: 'down',
+    countIn: 0,
+    repetitions: 2,
+    bpm: 120,
+  });
+  assert.equal(e.rounds.length, 2);
+  assert.equal(practiceAt(e, secondsAt(3, 120)).current.midi, 72);
+  assert.equal(practiceAt(e, secondsAt(3, 120)).next?.midi, 72);
 });

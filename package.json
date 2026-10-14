@@ -11,7 +11,8 @@
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "tsx tests/e2e.ts",
     "format": "prettier --write .",
-    "setup:browser": "playwright install chromium"
+    "setup:browser": "playwright install chromium",
+    "test:audio": "tsx tests/audio-playback.e2e.ts"
   },
   "dependencies": {
     "@tonejs/midi": "^2.0.28",

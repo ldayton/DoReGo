@@ -1200,3 +1200,126 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+/* Keep the workspace immediately visible; copy is limited to controls and status. */
+main {
+  padding-top: 28px;
+  padding-bottom: 28px;
+}
+.site-header {
+  height: 74px;
+}
+.exercise-heading h2 {
+  margin-top: 0;
+}
+.export-card {
+  margin-top: 28px;
+}
+.dialog-top {
+  justify-content: flex-end;
+  margin-bottom: 0;
+}
+@media (max-width: 760px) {
+  main {
+    padding-top: 20px;
+  }
+}
+
+.direction-field {
+  border: 0;
+  padding: 0;
+  margin: 0 0 19px;
+  min-width: 0;
+}
+.direction-field legend {
+  font-size: 11px;
+  font-weight: 550;
+  color: #5a6558;
+  padding: 0;
+  margin-bottom: 8px;
+}
+.direction-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.direction-toggle label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 40px;
+  padding: 8px 5px;
+  font-size: 11px;
+  border: 1px solid #dddfd4;
+  border-radius: 7px;
+  background: #fffefa;
+  color: #7c8276;
+  cursor: pointer;
+}
+.direction-toggle label:has(input:checked) {
+  background: var(--green);
+  border-color: #a4b87a;
+  color: var(--ink);
+  font-weight: 600;
+}
+.direction-toggle label:focus-within {
+  outline: 3px solid #95ad62;
+  outline-offset: 3px;
+}
+.direction-toggle input[type='radio'] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+}
+.direction-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+.note-spinner {
+  display: grid;
+  grid-template-columns: 27px minmax(0, 1fr) 27px;
+  align-items: center;
+  min-height: 42px;
+  border: 1px solid #dddfd4;
+  border-radius: 7px;
+  background: #fffefa;
+  overflow: hidden;
+}
+.note-spinner button {
+  height: 40px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--muted);
+}
+.note-spinner button:hover:not(:disabled) {
+  background: #edf1e3;
+  color: var(--ink);
+}
+.note-spinner button svg {
+  width: 13px;
+  height: 13px;
+}
+.note-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 550;
+  color: var(--ink);
+  cursor: ns-resize;
+  white-space: nowrap;
+}
+.note-value:focus-visible {
+  outline: 2px solid #95ad62;
+  outline-offset: -3px;
+  border-radius: 3px;
+}

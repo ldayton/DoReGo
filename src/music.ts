@@ -15,7 +15,7 @@ export function isVocalPattern(pattern: Pattern) {
   return pattern === 'arpeggio';
 }
 export type Direction = 'up' | 'down';
-export type Voice = 'piano' | 'soft' | 'bright';
+export type Voice = 'bitklavier';
 export interface ExerciseSpec {
   startingChords?: boolean;
   pattern: Pattern;
@@ -53,6 +53,31 @@ export interface Exercise {
   pitches: number[];
   title?: string;
   guideNotes?: NoteEvent[];
+  rounds: PracticeRound[];
+}
+export interface PracticeRound {
+  id: number;
+  midi: number;
+  degree: number;
+  onsetBeat: number;
+  endBeat: number;
+}
+export function practiceAt(exercise: Exercise, seconds: number) {
+  const beat = (Math.max(0, seconds) * exercise.spec.bpm) / 60;
+  let index = 0;
+  for (let i = 1; i < exercise.rounds.length; i++) {
+    if (exercise.rounds[i].onsetBeat > beat + 1e-9) break;
+    index = i;
+  }
+  const current = exercise.rounds[index];
+  return {
+    current,
+    next: exercise.rounds[index + 1] ?? null,
+    progress: Math.max(
+      0,
+      Math.min(1, (beat - current.onsetBeat) / (current.endBeat - current.onsetBeat))
+    ),
+  };
 }
 export interface Scene {
   beat: number;
@@ -69,14 +94,14 @@ export const DEFAULT_SPEC: ExerciseSpec = {
   low: 60,
   high: 72,
   direction: 'up',
-  bpm: 100,
+  bpm: 200,
   noteBeats: 1,
   repetitions: 2,
   restBeats: 2,
   countIn: 8,
   gate: 0.88,
-  volume: -12,
-  voice: 'piano',
+  volume: 0,
+  voice: 'bitklavier',
   metronome: false,
   solfege: false,
   transition: null,
@@ -116,7 +141,7 @@ export function validateSpec(input: unknown): ExerciseSpec {
   if (typeof s.pattern !== 'string' || !Object.hasOwn(PATTERNS, s.pattern))
     throw new Error('Choose a supported pattern.');
   if (!['up', 'down'].includes(String(s.direction))) throw new Error('Choose a direction.');
-  if (!['piano', 'soft', 'bright'].includes(String(s.voice))) throw new Error('Choose a sound.');
+  if (s.voice !== 'bitklavier') throw new Error('Only bitKlavier is supported.');
   for (const key of ['metronome', 'solfege'])
     if (typeof s[key] !== 'boolean') throw new Error(`Invalid ${key}.`);
   const result: ExerciseSpec = {
@@ -132,7 +157,7 @@ export function validateSpec(input: unknown): ExerciseSpec {
     restBeats: num('restBeats', 0, 16, true),
     countIn: num('countIn', 0, 8, true),
     gate: num('gate', 0.25, 1),
-    volume: num('volume', -36, 0),
+    volume: num('volume', -60, 0),
     metronome: s.metronome as boolean,
     solfege: s.solfege as boolean,
     transition: s.transition === null ? null : num('transition', 24, 96, true),
@@ -156,8 +181,16 @@ export function generateExercise(input: unknown): Exercise {
   if (spec.direction === 'down') phrase.reverse();
   const phraseBeats = phrase.length * spec.noteBeats;
   const notes: NoteEvent[] = [];
+  const rounds: PracticeRound[] = [];
   for (let rep = 0; rep < spec.repetitions; rep++) {
     const start = spec.countIn + rep * (phraseBeats + spec.restBeats);
+    rounds.push({
+      id: rounds.length,
+      midi: phrase[0],
+      degree: (phrase[0] - spec.key + 120) % 12,
+      onsetBeat: start,
+      endBeat: start + phraseBeats,
+    });
     phrase.forEach((midi, i) =>
       notes.push({
         id: notes.length,
@@ -174,7 +207,7 @@ export function generateExercise(input: unknown): Exercise {
     spec.countIn + spec.repetitions * phraseBeats + (spec.repetitions - 1) * spec.restBeats;
   if (secondsAt(totalBeats, spec.bpm) > 600)
     throw new Error('Keep exercises under 10 minutes. Reduce repetitions, range, or note length.');
-  return { spec, notes, totalBeats, phraseBeats, pitches };
+  return { spec, notes, totalBeats, phraseBeats, pitches, rounds };
 }
 function generateVocalExercise(spec: ExerciseSpec): Exercise {
   const descending = spec.direction === 'down';
@@ -199,6 +232,7 @@ function generateVocalExercise(spec: ExerciseSpec): Exercise {
     );
   const notes: NoteEvent[] = [],
     guideNotes: NoteEvent[] = [];
+  const rounds: PracticeRound[] = [];
   const add = (
     midi: number,
     onsetBeat: number,
@@ -227,6 +261,13 @@ function generateVocalExercise(spec: ExerciseSpec): Exercise {
         spec.countIn +
         rep * (phraseBeats + spec.restBeats) +
         index * (phraseLength + spec.restBeats);
+      rounds.push({
+        id: rounds.length,
+        midi: root,
+        degree: descending ? 7 : 0,
+        onsetBeat: beat,
+        endBeat: beat + phraseLength,
+      });
       if (spec.startingChords) {
         const approach = descending ? [-20, -8, -4, -1] : [-13, -6, -1, 3];
         const target = descending ? [-19, -7, -3, 0] : [-12, 0, 4];
@@ -250,6 +291,7 @@ function generateVocalExercise(spec: ExerciseSpec): Exercise {
     spec,
     notes,
     guideNotes,
+    rounds,
     totalBeats,
     phraseBeats,
     pitches: [...new Set(notes.map((n) => n.midi))].sort((a, b) => a - b),

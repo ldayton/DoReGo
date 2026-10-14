@@ -1,24 +1,22 @@
 import * as Tone from 'tone';
-import { secondsAt, metronomeBeat, type Exercise, type Voice } from './music';
+import { secondsAt, type Exercise } from './music';
 import { preloadSteinway, SteinwayGrand } from './steinway';
+import { audioEvents, type AudioEvent } from './audio-timeline';
 
 export const RELEASE_TAIL = 0.8;
-function makeGraph(voice: Voice, volume: number) {
-  const output = new Tone.Volume(volume).toDestination();
-  const options =
-    voice === 'soft'
-      ? {
-          oscillator: { type: 'sine' as const },
-          envelope: { attack: 0.035, decay: 0.15, sustain: 0.6, release: 0.35 },
-        }
-      : {
-          oscillator: { type: 'triangle' as const },
-          envelope: { attack: 0.005, decay: 0.13, sustain: 0.5, release: 0.18 },
-        };
-  const synth =
-    voice === 'piano'
-      ? new SteinwayGrand(output)
-      : new Tone.PolySynth(Tone.Synth, options).connect(output);
+let playbackContext: AudioContext | undefined;
+function initPlayback() {
+  if (!playbackContext) {
+    // This is a sequenced player: reliability matters more than live-key latency.
+    playbackContext = new AudioContext({ latencyHint: 'playback' });
+    Tone.setContext(new Tone.Context({ context: playbackContext, lookAhead: 0.15 }), true);
+  }
+}
+function makeGraph(volume: number) {
+  // Catch unusually loud chord sums without changing ordinary piano dynamics.
+  const limiter = new Tone.Limiter(-1).toDestination();
+  const output = new Tone.Volume(volume <= -60 ? -Infinity : volume).connect(limiter);
+  const synth = new SteinwayGrand(output);
   const click = new Tone.Synth({
     oscillator: { type: 'sine' },
     envelope: { attack: 0.001, decay: 0.025, sustain: 0, release: 0.02 },
@@ -32,36 +30,21 @@ function makeGraph(voice: Voice, volume: number) {
       synth.dispose();
       click.dispose();
       output.dispose();
+      limiter.dispose();
     },
   };
 }
-function schedule(
-  exercise: Exercise,
-  graph: ReturnType<typeof makeGraph>,
-  epoch: number,
-  offset: number
-) {
-  const { bpm, countIn, metronome } = exercise.spec;
-  for (const n of exercise.notes) {
-    const start = secondsAt(n.onsetBeat, bpm),
-      end = secondsAt(n.onsetBeat + n.durationBeats, bpm);
-    if (end <= offset) continue;
+function playEvent(event: AudioEvent, graph: ReturnType<typeof makeGraph>, time: number, late = 0) {
+  if (event.kind === 'click') {
+    if (late < 0.04)
+      graph.click.triggerAttackRelease(event.frequency, event.duration, time, event.velocity);
+  } else if (event.duration > late) {
     graph.synth.triggerAttackRelease(
-      Tone.Frequency(n.midi, 'midi').toFrequency(),
-      end - Math.max(start, offset),
-      epoch + Math.max(0, start - offset),
-      n.velocity ?? 0.7
-    );
-  }
-  for (let beat = 0; beat < exercise.totalBeats; beat++) {
-    const start = secondsAt(beat, bpm);
-    if (start < offset || (beat >= countIn && !metronome)) continue;
-    const click = metronomeBeat(beat, countIn);
-    graph.click.triggerAttackRelease(
-      click.frequency,
-      0.025,
-      epoch + start - offset,
-      click.velocity
+      event.frequency,
+      event.duration - late,
+      time,
+      event.velocity,
+      event.elapsed + late
     );
   }
 }
@@ -70,27 +53,63 @@ export class Player {
   private epoch = 0;
   private offset = 0;
   private pending = 0;
+  private scheduler: ReturnType<typeof setInterval> | undefined;
   async play(exercise: Exercise, offset = 0) {
     this.stop();
     const token = ++this.pending;
     this.offset = offset;
+    initPlayback();
     await Tone.start();
     if (token !== this.pending) return false;
     await preloadSteinway(exercise);
     if (token !== this.pending) return false;
-    this.graph = makeGraph(exercise.spec.voice, exercise.spec.volume);
+    this.graph = makeGraph(exercise.spec.volume);
     this.offset = offset;
-    this.epoch = Tone.immediate() + 0.08;
-    schedule(exercise, this.graph, this.epoch, offset);
+    this.epoch = Tone.now() + 0.05;
+    const graph = this.graph;
+    const events = audioEvents(exercise, offset);
+    let cursor = 0;
+    const fill = () => {
+      const now = graph.output.context.immediate();
+      // Bound live node count; keep a full second buffered through UI stalls.
+      while (cursor < events.length && this.epoch + events[cursor].time < now + 1) {
+        const event = events[cursor++];
+        const planned = this.epoch + event.time;
+        const time = Math.max(planned, now + 0.015);
+        playEvent(event, graph, time, Math.max(0, time - planned));
+      }
+    };
+    fill();
+    this.scheduler = setInterval(fill, 100);
     return true;
   }
   get position() {
-    return this.graph ? this.offset + Math.max(0, Tone.immediate() - this.epoch) : this.offset;
+    if (!this.graph || !playbackContext) return this.offset;
+    const stamp = playbackContext.getOutputTimestamp?.();
+    const contextTime = stamp?.contextTime ?? 0;
+    const performanceTime = stamp?.performanceTime ?? 0;
+    const audibleTime =
+      contextTime > 0 && performanceTime > 0
+        ? Math.min(
+            playbackContext.currentTime,
+            contextTime + Math.max(0, performance.now() - performanceTime) / 1000
+          )
+        : playbackContext.currentTime -
+          playbackContext.baseLatency -
+          (playbackContext.outputLatency || 0);
+    return this.offset + Math.max(0, audibleTime - this.epoch);
   }
   stop() {
     ++this.pending;
-    this.graph?.dispose();
+    clearInterval(this.scheduler);
+    this.scheduler = undefined;
+    const graph = this.graph;
     this.graph = null;
+    if (graph) {
+      // A hard disconnect at an arbitrary waveform position creates a click.
+      graph.output.volume.rampTo(-100, 0.02, graph.output.context.immediate());
+      setTimeout(() => graph.dispose(), 50);
+    }
   }
 }
 export async function renderAudio(exercise: Exercise): Promise<Uint8Array> {
@@ -99,9 +118,9 @@ export async function renderAudio(exercise: Exercise): Promise<Uint8Array> {
   let cleanup = () => {};
   const result = await Tone.Offline(
     () => {
-      const graph = makeGraph(exercise.spec.voice, exercise.spec.volume);
+      const graph = makeGraph(exercise.spec.volume);
       cleanup = () => graph.dispose();
-      schedule(exercise, graph, 0, 0);
+      for (const event of audioEvents(exercise, 0)) playEvent(event, graph, event.time);
     },
     duration,
     2,

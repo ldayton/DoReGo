@@ -1,8 +1,0 @@
-AKAI Splendid Grand Piano
-Instrument: Steinway Grand Piano
-Sample license: Public Domain
-Source: https://sfzinstruments.github.io/pianos/splendid_grand_piano/
-Encoded samples: https://github.com/smpldsnds/sfzinstruments-splendid-grand-piano
-Revision: 009793ebf849aee57f9a213aeaf8f2d1e2178f4f
-SFZ conversion: kinwie; string resonance: P. Eastman (resonance samples not included).
-Local files are renamed copies of the source M4A recordings.

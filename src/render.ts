@@ -1,4 +1,12 @@
-import { noteName, PATTERNS, solfege, stateAt, type Exercise } from './music';
+import {
+  noteName,
+  PATTERNS,
+  solfege,
+  stateAt,
+  practiceAt,
+  type PracticeRound,
+  type Exercise,
+} from './music';
 
 const C = {
   paper: '#faf9f4',
@@ -52,6 +60,7 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
   if (!ctx) throw new Error('Canvas rendering is unavailable in this browser.');
   const { spec, notes } = exercise;
   const scene = stateAt(exercise, seconds);
+  const practice = practiceAt(exercise, seconds);
   const sounding = new Set(
     notes
       .filter((n) => n.onsetBeat <= scene.beat && scene.beat < n.onsetBeat + n.durationBeats)
@@ -94,11 +103,11 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
     'right'
   );
   const labels = {
-    ready: 'MAKE A LITTLE ROOM FOR YOUR VOICE',
+    ready: 'READY',
     countin: `${Math.ceil(spec.countIn / 4)}-BAR COUNT-IN`,
-    note: exercise.title ? 'FOLLOW THE GUIDE' : `ROUND ${scene.repetition} OF ${spec.repetitions}`,
-    rest: 'BREATHE & RESET',
-    complete: 'NICELY DONE. TAKE A BREATH.',
+    note: `ROUND ${practice.current.id + 1} OF ${exercise.rounds.length}`,
+    rest: 'REST',
+    complete: 'COMPLETE',
   };
   text(ctx, labels[scene.phase], 800, 155, 19, C.muted, 600);
   if (scene.phase === 'countin') {
@@ -160,102 +169,42 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
         );
       }
     }
-  } else if (scene.note) {
-    const label = spec.solfege
-      ? solfege(scene.note.degree)
-      : noteName(scene.note.midi, spec.key).slice(0, -1);
-    text(ctx, label, spec.solfege ? 800 : 778, 325, label.length > 2 ? 158 : 190, C.ink, 500);
-    if (!spec.solfege)
-      text(
-        ctx,
-        String(Math.floor(scene.note.midi / 12) - 1),
-        800 + (label.length > 1 ? 128 : 95),
-        365,
-        48,
-        C.muted,
-        400
-      );
-    const sub = exercise.title
-      ? sounding.size > 1
-        ? [...sounding]
-            .sort((a, b) => a - b)
-            .map((n) => noteName(n, spec.key))
-            .join(' · ')
-        : 'Guide note'
-      : spec.solfege
-        ? noteName(scene.note.midi, spec.key)
-        : [
-            'tonic',
-            'raised tonic',
-            'second',
-            'minor third',
-            'major third',
-            'fourth',
-            'raised fourth',
-            'fifth',
-            'minor sixth',
-            'sixth',
-            'minor seventh',
-            'major seventh',
-          ][scene.note.degree];
-    text(ctx, sub, 800, 445, 24, C.muted, 400);
-    if (scene.phase !== 'ready') {
-      rounded(ctx, 650, 492, 300, 4, 2, C.line);
-      rounded(
-        ctx,
-        650,
-        492,
-        300 * Math.min(1, Math.max(0, (scene.beat - scene.note.onsetBeat) / scene.note.slotBeats)),
-        4,
-        2,
-        C.accent
-      );
-    } else if (spec.countIn)
-      text(
-        ctx,
-        `${spec.countIn % 4 === 0 ? `${spec.countIn / 4}-bar` : `${spec.countIn}-beat`} count-in · then follow the guide`,
-        800,
-        496,
-        18,
-        C.muted,
-        400
-      );
-  } else {
-    text(
-      ctx,
-      scene.phase === 'complete' ? '✓' : '—',
-      800,
-      318,
-      150,
-      scene.phase === 'complete' ? '#779c40' : C.muted,
-      400
-    );
-    text(
-      ctx,
-      scene.phase === 'rest'
-        ? `Next round in ${scene.count}`
-        : 'Your voice, a little more at home.',
-      800,
-      445,
-      25,
-      C.muted,
-      400
-    );
+  } else if (scene.phase === 'complete') {
+    text(ctx, '✓', 800, 325, 150, '#779c40', 400);
   }
-  // Upcoming note names are derived directly from sequence position.
-  if (scene.upcoming.length) {
-    text(ctx, 'UP NEXT', 580, 555, 16, C.muted, 600, 'right');
-    scene.upcoming.forEach((n, i) => {
-      rounded(ctx, 610 + i * 130, 530, 112, 50, 25, i === 0 ? '#edf1e3' : '#f2f3ec');
-      text(
-        ctx,
-        spec.solfege ? solfege(n.degree) : noteName(n.midi, spec.key),
-        666 + i * 130,
-        555,
-        22,
-        i === 0 ? C.ink : C.muted
-      );
-    });
+  // Practice targets are stable for the whole round, independent of sounding notes.
+  const compact = scene.phase === 'countin';
+  const drawTarget = (round: PracticeRound | null, title: string, x: number, primary: boolean) => {
+    const y = compact ? 557 : 335;
+    text(ctx, title, x, compact ? 531 : 225, compact ? 14 : 20, C.muted, 600);
+    const label = round
+      ? spec.solfege
+        ? solfege(round.degree)
+        : noteName(round.midi, spec.key)
+      : '—';
+    text(ctx, label, x, y, compact ? 28 : primary ? 148 : 94, primary ? C.ink : C.muted, 500);
+    if (round && spec.solfege && !compact)
+      text(ctx, noteName(round.midi, spec.key), x, 440, 26, C.muted, 400);
+  };
+  if (scene.phase !== 'complete') {
+    drawTarget(practice.current, 'CURRENT', compact ? 680 : 650, true);
+    drawTarget(practice.next, 'NEXT', compact ? 920 : 1080, false);
+    if (!compact) {
+      rounded(ctx, 495, 488, 310, 4, 2, C.line);
+      rounded(ctx, 495, 488, 310 * practice.progress, 4, 2, C.accent);
+      if (scene.phase === 'ready' && spec.countIn)
+        text(
+          ctx,
+          `${spec.countIn % 4 === 0 ? `${spec.countIn / 4}-bar` : `${spec.countIn}-beat`} count-in`,
+          800,
+          558,
+          19,
+          C.muted,
+          400
+        );
+      if (scene.phase === 'rest')
+        text(ctx, `Next round in ${scene.count}`, 800, 558, 22, C.muted, 400);
+    }
   }
   // Include a small amount of context around the configured range.
   let low = Math.max(0, Math.min(spec.low - 2, ...exercise.pitches)),
@@ -334,7 +283,6 @@ export function drawExercise(canvas: HTMLCanvasElement, exercise: Exercise, seco
     500,
     'left'
   );
-  text(ctx, 'a little practice, a little progress', 800, 858, 17, C.muted, 400);
   text(
     ctx,
     `${Math.min(notes.length, scene.note ? scene.note.id + 1 : scene.phase === 'complete' ? notes.length : notes.filter((n) => n.onsetBeat < scene.beat).length)} / ${notes.length} notes`,

@@ -14,24 +14,35 @@ const page = await browser.newPage({
   viewport: { width: 1440, height: 1100 },
   acceptDownloads: true,
 });
+async function setNote(id: string, target: number) {
+  const spin = page.locator(`#${id}-spin`);
+  let value = Number(await spin.getAttribute('aria-valuenow'));
+  while (value !== target) {
+    await spin.press(value < target ? 'ArrowUp' : 'ArrowDown');
+    value = Number(await spin.getAttribute('aria-valuenow'));
+  }
+}
 const errors: string[] = [];
 page.on('pageerror', (error) => errors.push(error.message));
 try {
   await page.goto(base);
-  await page.getByRole('heading', { name: 'Find your next note.' }).waitFor();
+  await page.locator('#exercise-title').waitFor();
+  assert.equal(await page.locator('#voice').count(), 0);
   assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio (Ascending)');
   assert.deepEqual(await page.locator('#pattern option').allTextContents(), [
     'Arpeggio',
     'Major Scale',
   ]);
-  assert.deepEqual(await page.locator('#direction option').allTextContents(), [
+  assert.deepEqual(await page.locator('#direction label span').allTextContents(), [
     'Ascending',
     'Descending',
   ]);
   await page.locator('canvas').screenshot({ path: new URL('practice-canvas.png', work).pathname });
   await page.screenshot({ path: new URL('desktop.png', work).pathname, fullPage: true });
   await page.locator('#play').click();
-  await page.waitForTimeout(400);
+  await page.waitForFunction(
+    () => Number((document.querySelector('#position') as HTMLInputElement).value) > 0.15
+  );
   assert.equal(await page.locator('#play').innerText(), 'Pause');
   await page.locator('#play').click();
   const paused = Number(await page.locator('#position').inputValue());
@@ -47,7 +58,7 @@ try {
   await page.locator('#position').focus();
   await page.keyboard.press('ArrowRight');
   assert.ok(Number(await page.locator('#position').inputValue()) > 0);
-  await page.locator('h1').click();
+  await page.locator('#exercise-title').click();
   await page.keyboard.press('Space');
   assert.equal(await page.locator('#play').innerText(), 'Pause');
   await page.locator('#play').click();
@@ -58,7 +69,7 @@ try {
   await page.locator('#transpose-up').click();
   assert.equal(await page.locator('#key').inputValue(), '1');
   assert.equal(await page.locator('#low').inputValue(), '61');
-  await page.getByRole('button', { name: 'Major Scale', exact: false }).click();
+  await page.locator('#pattern').selectOption('major');
   assert.equal(await page.locator('#pattern').inputValue(), 'major');
   await page.locator('#save-preset').click();
   await page.locator('#preset-name').fill('My test warm-up');
@@ -85,10 +96,10 @@ try {
   );
   await page.screenshot({ path: new URL('mobile.png', work).pathname, fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1100 });
-  await page.locator('#low').selectOption('84');
+  await setNote('low', 84);
   assert.ok(await page.locator('#form-error').isVisible());
   assert.ok(await page.locator('#play').isDisabled());
-  await page.locator('#low').selectOption('60');
+  await setNote('low', 60);
   assert.ok(await page.locator('#form-error').isHidden());
   // Frame-order independence, including a personal transition marker.
   const render = await browser.newPage({ viewport: { width: 1280, height: 720 } });
@@ -104,22 +115,68 @@ try {
   await render.evaluate(() => window.doregoRenderer.frame(0.3));
   await render.evaluate(() => window.doregoRenderer.frame(3));
   assert.deepEqual(await render.locator('canvas').screenshot(), first);
+  // The supported piano decodes and renders a non-silent audio track.
+  for (const voice of ['bitklavier'] as const) {
+    await render.evaluate((spec) => window.doregoRenderer.init(spec, 1280, 720), {
+      ...DEFAULT_SPEC,
+      pattern: 'major' as const,
+      low: 60,
+      high: 60,
+      countIn: 0,
+      repetitions: 1,
+      restBeats: 0,
+      voice,
+    });
+    const wav = Buffer.from(await render.evaluate(() => window.doregoRenderer.audio()), 'base64');
+    let energy = 0;
+    for (let offset = 44; offset < wav.length; offset += 2) energy += wav.readInt16LE(offset) ** 2;
+    assert.ok(Math.sqrt(energy / ((wav.length - 44) / 2)) > 100, `${voice} audio is silent`);
+  }
+  // A longer exercise must extend a previously cropped cached piano sample.
+  await render.evaluate((spec) => window.doregoRenderer.init(spec, 1280, 720), {
+    ...DEFAULT_SPEC,
+    pattern: 'major' as const,
+    voice: 'bitklavier' as const,
+    low: 60,
+    high: 60,
+    bpm: 30,
+    noteBeats: 4,
+    gate: 1,
+    countIn: 0,
+    repetitions: 1,
+    restBeats: 0,
+  });
+  const sustained = Buffer.from(
+    await render.evaluate(() => window.doregoRenderer.audio()),
+    'base64'
+  );
+  let sustainedEnergy = 0,
+    sustainedCount = 0;
+  for (let offset = 44 + 4 * 44100 * 4; offset < 44 + 5 * 44100 * 4; offset += 2) {
+    sustainedEnergy += sustained.readInt16LE(offset) ** 2;
+    sustainedCount++;
+  }
+  assert.ok(
+    Math.sqrt(sustainedEnergy / sustainedCount) > 5,
+    'Longer notes lost their cached sample tail'
+  );
+
   await render.close();
   // Arpeggio has independent direction and range controls.
-  await page.locator('#low').selectOption('60');
-  await page.locator('#high').selectOption('67');
+  await setNote('low', 60);
+  await setNote('high', 67);
   await page.locator('#pattern').selectOption('arpeggio');
   assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio (Ascending)');
   assert.ok(await page.locator('#low').isEnabled());
   assert.ok(await page.locator('#high').isEnabled());
   const narrowSummary = await page.locator('#exercise-summary').textContent();
-  await page.locator('#high').selectOption('68');
+  await setNote('high', 68);
   assert.notEqual(await page.locator('#exercise-summary').textContent(), narrowSummary);
   await page.locator('.more-settings summary').click();
   const withChords = await page.locator('#exercise-summary').textContent();
   await page.locator('#startingChords').uncheck();
   assert.notEqual(await page.locator('#exercise-summary').textContent(), withChords);
-  await page.locator('#direction').selectOption('down');
+  await page.getByRole('radio', { name: 'Descending', exact: true }).check();
   assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio (Descending)');
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
@@ -127,6 +184,7 @@ try {
   // A short export through the same UI used by a person.
   const short = {
     ...DEFAULT_SPEC,
+    voice: 'bitklavier' as const,
     pattern: 'major',
     low: 60,
     high: 64,
