@@ -93,3 +93,9 @@ Rebuild the assets with `python3 scripts/setup-bitklavier.py` (requires FFmpeg; 
 ### Audio reliability checks
 
 `npm run test:audio` instruments live browser playback of a wide-range bitKlavier exercise at full volume. It checks bounded source count, sample tail memory retention, native scheduling through a 400 ms main-thread stall, non-silent output without clipping, and silent cleanup after pause. The sample loader limits concurrent decodes to four, retains only the duration needed by each exercise (including pitch shift and release), reloads longer samples when necessary, and evicts unused cached data above 128 MiB. An exercise that itself needs more than that budget keeps its required samples. Original recordings remain unchanged. Tests cannot certify the absence of glitches at physical speakers or external audio devices.
+
+## GitHub Pages
+
+The public site is https://ldayton.github.io/DoReGo/ . `.github/workflows/deploy.yml` tests, builds, and deploys each push to `main`; it can also be run manually from Actions. Repository Settings → Pages must use GitHub Actions as the source. Failed checks prevent deployment.
+
+`npm run build:pages` produces `dist-pages/` with the `/DoReGo/` base path. `npm run test:pages` starts a static preview and verifies piano playback, sample paths, MIDI download, credits, and static hosting controls. Install the Playwright Chromium browser first with `npm run setup:browser`. The Pages site supports practice and MIDI; video export remains available in the local app because it requires the local FFmpeg rendering server. `npm run build` and `npm start` continue to run the full local app.

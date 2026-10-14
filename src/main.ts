@@ -37,6 +37,7 @@ import './style.css';
 
 const $ = <T extends HTMLElement = HTMLElement>(selector: string) =>
   document.querySelector<T>(selector)!;
+const staticHosting = import.meta.env.MODE === 'pages';
 const icons = {
   Play,
   Pause,
@@ -121,7 +122,7 @@ function restoreSpec(input: unknown): ExerciseSpec {
 
 $('#app').innerHTML = `
   <header class="site-header">
-    <a class="brand" href="/" aria-label="DoReGo home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>DoReGo<span class="brand-dot">.</span></a>
+    <a class="brand" href="${import.meta.env.BASE_URL}" aria-label="DoReGo home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>DoReGo<span class="brand-dot">.</span></a>
     <button class="quiet-button" id="how-button">Help <i data-lucide="arrow-up-right"></i></button>
   </header>
   <main>
@@ -163,11 +164,11 @@ $('#app').innerHTML = `
       </section>
     </div>
 
-    <section class="export-card" aria-label="Exports"><div class="export-icon"><i data-lucide="music-2"></i></div><div class="export-copy"><h3>Take your practice with you.</h3><p>MIDI for your music tools. A video to sing along anywhere.</p></div><div class="export-actions"><button class="secondary-button" id="midi-download"><i data-lucide="download"></i> MIDI</button><button class="dark-button" id="video-button">Export video <i data-lucide="arrow-up-right"></i></button></div></section>
+    <section class="export-card" aria-label="Exports"><div class="export-icon"><i data-lucide="music-2"></i></div><div class="export-copy"><h3>Take your practice with you.</h3><p>${staticHosting ? 'MIDI for your music tools.' : 'MIDI for your music tools. A video to sing along anywhere.'}</p></div><div class="export-actions"><button class="secondary-button" id="midi-download"><i data-lucide="download"></i> MIDI</button><button class="dark-button" id="video-button" ${staticHosting ? 'hidden' : ''}>Export video <i data-lucide="arrow-up-right"></i></button></div></section>
   </main>
   <dialog id="export-dialog" class="dialog"><div class="dialog-top"><button class="icon-button close-dialog" aria-label="Close video export"><i data-lucide="x"></i></button></div><h2>Export video</h2><label class="field">Video quality<select id="video-quality"><option value="720">720p · 30 fps</option><option value="1080">1080p · 30 fps</option></select></label><div id="export-progress" hidden><div class="progress-track"><div id="export-bar"></div></div><p id="export-stage" role="status">Getting ready…</p></div><p id="export-error" class="error-message" role="alert" hidden></p><a id="video-download" class="dark-button download-link" hidden>Download MP4 <i data-lucide="download"></i></a><div class="dialog-actions"><button class="secondary-button" id="cancel-export" hidden>Cancel export</button><button class="dark-button" id="start-export">Create video <i data-lucide="arrow-up-right"></i></button></div><p class="field-hint">Downloads expire after one hour.</p></dialog>
   <dialog id="save-dialog" class="dialog"><form id="save-form"><div class="dialog-top"><button type="button" class="icon-button close-dialog" aria-label="Close save preset"><i data-lucide="x"></i></button></div><h2>Save preset</h2><label class="field">Preset name<input id="preset-name" placeholder="My morning warm-up" maxlength="60" required /></label><button class="dark-button" type="submit">Save preset <i data-lucide="bookmark"></i></button></form></dialog>
-  <dialog id="how-dialog" class="dialog"><div class="dialog-top"><button class="icon-button close-dialog" aria-label="Close how it works"><i data-lucide="x"></i></button></div><h2>Help</h2><ol class="how-steps"><li>Choose an exercise, range, and tempo.</li><li>Press Play and follow the notes.</li><li>Save a preset or export MIDI / video.</li></ol><p class="field-hint">Shortcuts: Space to play or pause. R to restart. F for fullscreen.</p><p class="field-hint"><a href="/samples/bitklavier/NOTICE.txt" target="_blank" rel="noopener">bitKlavier Grand recordings &amp; credits · CC BY 4.0</a></p></dialog>
+  <dialog id="how-dialog" class="dialog"><div class="dialog-top"><button class="icon-button close-dialog" aria-label="Close how it works"><i data-lucide="x"></i></button></div><h2>Help</h2><ol class="how-steps"><li>Choose an exercise, range, and tempo.</li><li>Press Play and follow the notes.</li><li>${staticHosting ? 'Save a preset or export MIDI.' : 'Save a preset or export MIDI / video.'}</li></ol><p class="field-hint">Shortcuts: Space to play or pause. R to restart. F for fullscreen.</p><p class="field-hint"><a href="${import.meta.env.BASE_URL}samples/bitklavier/NOTICE.txt" target="_blank" rel="noopener">bitKlavier Grand recordings &amp; credits · CC BY 4.0</a></p></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
 `;
 

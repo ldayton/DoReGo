@@ -44,7 +44,7 @@ export async function preloadSteinway(exercise: Exercise) {
               file,
               (async () => {
                 try {
-                  const response = await fetch(`/samples/${file}`);
+                  const response = await fetch(`${import.meta.env.BASE_URL}samples/${file}`);
                   if (!response.ok)
                     throw new Error(
                       'Could not load the piano recordings. Check that the local app is running.'

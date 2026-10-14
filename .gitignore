@@ -4,3 +4,4 @@ work/
 .DS_Store
 *.log
 .env
+dist-pages/
