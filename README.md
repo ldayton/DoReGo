@@ -80,7 +80,7 @@ All runtime dependency versions are pinned by `package-lock.json`. The app does 
 
 **Major Scale** generates the selected key's scale notes within your range, ascending or descending. Rounds repeat that scale, with the configured rest between rounds.
 
-Both exercises use the tempo, note length, articulation, count-in, rounds, volume, and export settings. Older saved exercise types are mapped to these two choices; the former combined up-and-down direction maps to ascending.
+Both exercises use the tempo, note length, natural articulation, count-in, rounds, volume, and export settings. Older saved exercise types are mapped to these two choices; the former combined up-and-down direction maps to ascending.
 
 ## bitKlavier Grand
 

@@ -47,6 +47,13 @@ try {
   });
   await page.goto(base);
   await page.locator('#exercise-title').waitFor();
+  assert.equal(await page.locator('#gate').count(), 0);
+  assert.deepEqual(await page.locator('#countIn option').allTextContents(), [
+    '0 bars',
+    '½ bar',
+    '1 bar',
+    '2 bars',
+  ]);
   assert.equal(await page.locator('.brand').getAttribute('href'), '/DoReGo/');
   assert.ok(await page.locator('#video-button').isHidden());
   assert.equal(await page.locator('#bpm').inputValue(), '200');
