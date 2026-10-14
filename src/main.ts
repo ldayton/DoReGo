@@ -113,6 +113,7 @@ function restoreSpec(input: unknown): ExerciseSpec {
     voice: 'bitklavier',
     gate: DEFAULT_SPEC.gate,
     noteBeats: DEFAULT_SPEC.noteBeats,
+    solfege: false,
   } as Record<string, unknown>;
   if (saved.pattern === 'strawDescending') {
     saved.pattern = 'arpeggio';
@@ -153,7 +154,6 @@ $('#app').innerHTML = `
             <label class="field">Count-in<select name="countIn" id="countIn"><option value="0">0 bars</option><option value="2">½ bar</option><option value="4">1 bar</option><option value="8">2 bars</option></select></label>
             <label class="field">Volume <span class="volume-row"><i data-lucide="volume-2"></i><input name="volume" id="volume" type="range" min="-36" max="0" step="1" /></span></label>
             <label class="toggle-row"><span>Metronome</span><input name="metronome" id="metronome" type="checkbox" role="switch" /></label>
-            <label class="toggle-row"><span>Solfege</span><input name="solfege" id="solfege" type="checkbox" role="switch" /></label>
             <label class="field">Transition marker<select name="transition" id="transition"><option value="">Off</option></select></label>
           </div></details>
           <p id="form-error" class="error-message" role="alert" hidden></p>
@@ -266,7 +266,7 @@ function readForm(): ExerciseSpec {
   result.noteBeats = DEFAULT_SPEC.noteBeats;
   result.transition = result.transition === '' ? null : Number(result.transition);
   result.metronome = $<HTMLInputElement>('#metronome').checked;
-  result.solfege = $<HTMLInputElement>('#solfege').checked;
+  result.solfege = false;
   result.startingChords = $<HTMLInputElement>('#startingChords').checked;
   return generateExercise(result).spec;
 }

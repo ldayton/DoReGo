@@ -49,6 +49,7 @@ try {
   await page.locator('#exercise-title').waitFor();
   assert.equal(await page.locator('#gate').count(), 0);
   assert.equal(await page.locator('#noteBeats').count(), 0);
+  assert.equal(await page.locator('#solfege').count(), 0);
   assert.deepEqual(await page.locator('#countIn option').allTextContents(), [
     '0 bars',
     '½ bar',
