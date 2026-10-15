@@ -24,10 +24,10 @@ const page = await browser.newPage({
 });
 async function setNote(id: string, target: number) {
   const spin = page.locator(`#${id}-spin`);
-  let value = Number(await spin.getAttribute('aria-valuenow'));
+  let value = Number(await page.locator(`#${id}`).inputValue());
   while (value !== target) {
     await spin.press(value < target ? 'ArrowUp' : 'ArrowDown');
-    value = Number(await spin.getAttribute('aria-valuenow'));
+    value = Number(await page.locator(`#${id}`).inputValue());
   }
 }
 const errors: string[] = [];
@@ -36,8 +36,8 @@ try {
   await page.goto(base);
   await page.locator('#exercise-title').waitFor();
   assert.equal(await page.locator('#voice').count(), 0);
-  assert.equal(await page.locator('#exercise-title').textContent(), 'Rossini Scale');
-  assert.equal(await page.locator('#bpm').inputValue(), '180');
+  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio & Scale (Ascending)');
+  assert.equal(await page.locator('#bpm').inputValue(), '150');
   assert.equal(await page.locator('#low').inputValue(), '52');
   assert.equal(await page.locator('#high').inputValue(), '76');
   assert.equal(

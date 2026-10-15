@@ -5,6 +5,7 @@ import {
   RotateCcw,
   ArrowUpRight,
   ChevronDown,
+  ChevronUp,
   Plus,
   Minus,
   Maximize2,
@@ -27,6 +28,9 @@ import {
   type ExerciseSpec,
 } from './music';
 import { Player, RELEASE_TAIL } from './audio';
+import { NoteWheel } from './note-wheel';
+import { NotePicker } from './note-picker';
+import { AnchoredSelect } from './anchored-select';
 import { drawExercise, WIDTH, HEIGHT, MOBILE_HEIGHT } from './render';
 import './style.css';
 
@@ -38,6 +42,7 @@ const icons = {
   RotateCcw,
   ArrowUpRight,
   ChevronDown,
+  ChevronUp,
   Plus,
   Minus,
   Maximize2,
@@ -72,6 +77,7 @@ function restoreSpec(input: unknown): ExerciseSpec {
     solfege: false,
     transition: null,
   } as Record<string, unknown>;
+  if (typeof saved.bpm === 'number' && Number.isFinite(saved.bpm) && saved.bpm < 60) saved.bpm = 60;
   if (saved.pattern === 'strawDescending') {
     saved.pattern = 'arpeggio';
     saved.direction = 'down';
@@ -118,12 +124,20 @@ $('#app').innerHTML = `
             .join('')}</select></label>
           <fieldset id="direction" class="direction-field"><legend>Direction</legend><div class="direction-toggle"><label><input type="radio" name="direction" value="up" /><i data-lucide="arrow-up-right"></i><span>Ascending</span></label><label><input type="radio" name="direction" value="down" /><i data-lucide="arrow-down-right"></i><span>Descending</span></label></div></fieldset>
           <div id="range-heading" class="range-label"><span>Range</span><span class="range-actions"><button type="button" id="transpose-down" title="Move range and key down one semitone" aria-label="Transpose down one semitone"><i data-lucide="minus"></i></button><button type="button" id="transpose-up" title="Move range and key up one semitone" aria-label="Transpose up one semitone"><i data-lucide="plus"></i></button></span></div>
-          <div id="note-range" class="field-row">${(['low', 'high'] as const).map((id) => `<div class="field small-label"><span>${id === 'low' ? 'Lowest' : 'Highest'}</span><div class="note-spinner"><button type="button" data-note="${id}" data-step="-1" aria-label="Decrease ${id === 'low' ? 'lowest' : 'highest'} note"><i data-lucide="minus"></i></button><span id="${id}-spin" class="note-value" role="spinbutton" tabindex="0" aria-label="${id === 'low' ? 'Lowest' : 'Highest'} note" aria-valuemin="24" aria-valuemax="96"></span><button type="button" data-note="${id}" data-step="1" aria-label="Increase ${id === 'low' ? 'lowest' : 'highest'} note"><i data-lucide="plus"></i></button><input type="hidden" name="${id}" id="${id}" /></div></div>`).join('')}</div>
-          <div class="tempo-label"><label for="bpm">Tempo</label><span><input name="bpm" id="bpm" type="number" min="30" max="240" step="1" aria-label="Tempo in beats per minute"/><span>BPM</span></span></div>
-          <input id="tempo-slider" type="range" min="30" max="240" step="1" aria-label="Tempo slider" />
+          <div id="note-range" class="field-row">${(['low', 'high'] as const).map((id) => `<div class="field small-label"><span>${id === 'low' ? 'Lowest' : 'Highest'}</span><div class="desktop-note"><input id="${id}-spin" type="text" role="combobox" aria-label="${id === 'low' ? 'Lowest' : 'Highest'} note" autocomplete="off" spellcheck="false" maxlength="5" /><button type="button" id="${id}-choose" aria-label="Choose ${id === 'low' ? 'lowest' : 'highest'} note"><i data-lucide="chevron-down"></i></button></div><div class="note-spinner mobile-note"><div class="note-wheel-selection" aria-hidden="true"></div><div id="${id}-wheel" class="note-wheel" role="spinbutton" tabindex="0" aria-label="${id === 'low' ? 'Lowest' : 'Highest'} note" aria-valuemin="24" aria-valuemax="96" aria-description="Swipe or scroll to choose a note."></div></div><input type="hidden" name="${id}" id="${id}" /></div>`).join('')}</div>
+          <div class="tempo-label"><label for="bpm">Tempo</label><span><button type="button" id="tempo-down" class="tempo-step" aria-label="Decrease tempo by 5 BPM"><i data-lucide="minus"></i></button><input name="bpm" id="bpm" type="number" min="60" max="240" step="5" aria-label="Tempo in beats per minute"/><span>BPM</span><button type="button" id="tempo-up" class="tempo-step" aria-label="Increase tempo by 5 BPM"><i data-lucide="plus"></i></button></span></div>
+          <input id="tempo-slider" type="range" min="60" max="240" step="5" aria-label="Tempo slider" />
           <details class="more-settings"><summary>More options <i data-lucide="chevron-down"></i></summary><div class="advanced"><label id="starting-chords-field" class="toggle-row" hidden><span>Starting-note chords</span><input name="startingChords" id="startingChords" type="checkbox" role="switch" checked /></label>
-            <div class="field-row"><label class="field">Repeats<input name="repetitions" id="repetitions" type="number" min="1" max="16" step="1" /></label><label class="field">Rest (beats)<input name="restBeats" id="restBeats" type="number" min="0" max="16" step="1" /></label></div>
-            <label class="field">Count-in<select name="countIn" id="countIn"><option value="0">0 bars</option><option value="2">½ bar</option><option value="4">1 bar</option><option value="8">2 bars</option></select></label>
+            <div class="field-row">${[
+              { id: 'repeat', key: 'repetitions', label: 'Repeats', max: 15 },
+              { id: 'rest', key: 'restBeats', label: 'Rest (beats)', max: 16 },
+            ]
+              .map(
+                ({ id, key, label, max }) =>
+                  `<div class="field"><span>${label}</span><div class="desktop-count"><input id="${id}-count" class="count-input" type="number" min="0" max="${max}" step="1" aria-label="${label}" /><div class="count-arrows"><button type="button" data-count="${id}" data-step="1" aria-label="Increase ${id === 'repeat' ? 'repeats' : 'rest'}"><i data-lucide="chevron-up"></i></button><button type="button" data-count="${id}" data-step="-1" aria-label="Decrease ${id === 'repeat' ? 'repeats' : 'rest'}"><i data-lucide="chevron-down"></i></button></div></div><select id="${id}-select" class="mobile-count" aria-label="${label}">${Array.from({ length: 5 }, (_, value) => `<option value="${value}">${value === 0 ? 'None' : value}</option>`).join('')}</select><input name="${key}" id="${key}" type="hidden" /></div>`
+              )
+              .join('')}</div>
+            <div class="field"><span>Count-in</span><button type="button" id="countIn-trigger" class="anchored-trigger" role="combobox" aria-label="Count-in"><span></span><i data-lucide="chevron-down"></i></button><select name="countIn" id="countIn" class="count-in-native" aria-label="Count-in"><option value="0">0 bars</option><option value="2">½ bar</option><option value="4">1 bar</option><option value="8">2 bars</option></select></div>
             <label class="field">Volume <span class="volume-row"><i data-lucide="volume-2"></i><input name="volume" id="volume" type="range" min="-36" max="0" step="1" /></span></label>
             <label class="toggle-row"><span>Metronome</span><input name="metronome" id="metronome" type="checkbox" role="switch" /></label>
           </div></details>
@@ -166,6 +180,10 @@ function resizeStage() {
 window.addEventListener('resize', resizeStage);
 document.addEventListener('fullscreenchange', resizeStage);
 const form = $<HTMLFormElement>('#exercise-form');
+const countInSelect = new AnchoredSelect(
+  $<HTMLSelectElement>('#countIn'),
+  $<HTMLButtonElement>('#countIn-trigger')
+);
 const numeric = [
   'key',
   'low',
@@ -178,18 +196,30 @@ const numeric = [
   'gate',
   'volume',
 ] as const;
+const noteWheels = new Map(
+  ['low', 'high'].map((id) => [
+    id,
+    new NoteWheel($(`#${id}-wheel`), (midi) => stepNote(id, 0, midi)),
+  ])
+);
+const notePickers = new Map(
+  ['low', 'high'].map((id) => [
+    id,
+    new NotePicker(
+      $<HTMLInputElement>(`#${id}-spin`),
+      $<HTMLButtonElement>(`#${id}-choose`),
+      (midi) => stepNote(id, 0, midi)
+    ),
+  ])
+);
 function syncSpinners() {
   for (const id of ['low', 'high']) {
-    const midi = Number($<HTMLInputElement>(`#${id}`).value);
-    const spin = $(`#${id}-spin`);
-    const name = noteName(midi);
-    spin.textContent = name;
-    spin.setAttribute('aria-valuenow', String(midi));
-    spin.setAttribute('aria-valuetext', name);
-    $<HTMLButtonElement>(`[data-note="${id}"][data-step="-1"]`).disabled = midi <= 24;
-    $<HTMLButtonElement>(`[data-note="${id}"][data-step="1"]`).disabled = midi >= 96;
+    const value = Number($<HTMLInputElement>(`#${id}`).value);
+    noteWheels.get(id)!.setValue(value);
+    notePickers.get(id)!.setValue(value);
   }
 }
+mobileQuery.addEventListener('change', () => syncSpinners());
 function stepNote(id: string, step: number, absolute?: number) {
   const input = $<HTMLInputElement>(`#${id}`);
   input.value = String(Math.max(24, Math.min(96, absolute ?? Number(input.value) + step)));
@@ -197,7 +227,7 @@ function stepNote(id: string, step: number, absolute?: number) {
   input.dispatchEvent(new Event('change', { bubbles: true }));
 }
 for (const id of ['low', 'high']) {
-  $(`#${id}-spin`).addEventListener('keydown', (event) => {
+  $(`#${id}-wheel`).addEventListener('keydown', (event) => {
     const steps: Record<string, number> = {
       ArrowUp: 1,
       ArrowRight: 1,
@@ -217,13 +247,6 @@ for (const id of ['low', 'high']) {
     }
   });
 }
-document
-  .querySelectorAll<HTMLButtonElement>('[data-note]')
-  .forEach((button) =>
-    button.addEventListener('click', () =>
-      stepNote(button.dataset.note!, Number(button.dataset.step))
-    )
-  );
 function populate() {
   for (const [key, value] of Object.entries(spec)) {
     const element = form.elements.namedItem(key) as HTMLInputElement | HTMLSelectElement | null;
@@ -233,6 +256,9 @@ function populate() {
     else element.value = value === null ? '' : String(value);
   }
   syncSpinners();
+  syncCounts();
+  countInSelect.sync();
+  syncTempoSteps();
   $<HTMLInputElement>('#tempo-slider').value = String(spec.bpm);
   const vocal = isVocalPattern(spec.pattern);
   const direction = $<HTMLFieldSetElement>('#direction');
@@ -250,6 +276,7 @@ function populate() {
       spec.direction === 'down' ? Number(option.value) < 36 : Number(option.value) > 84;
   $('#range-heading').hidden = !vocal;
   $('#note-range').hidden = !vocal;
+  if (vocal) syncSpinners();
   $('#starting-chords-field').hidden = !vocal;
   $<HTMLInputElement>('#startingChords').checked = spec.startingChords ?? true;
 }
@@ -319,7 +346,13 @@ async function warmPiano() {
   }
   update();
 }
+function syncTempoSteps() {
+  const bpm = Number($<HTMLInputElement>('#bpm').value);
+  $<HTMLButtonElement>('#tempo-down').disabled = !Number.isFinite(bpm) || bpm <= 60;
+  $<HTMLButtonElement>('#tempo-up').disabled = !Number.isFinite(bpm) || bpm >= 240;
+}
 function setError(message: string | null) {
+  syncTempoSteps();
   const el = $('#form-error');
   el.textContent = message;
   el.hidden = !message;
@@ -354,7 +387,48 @@ $<HTMLInputElement>('#tempo-slider').addEventListener('input', () => {
 });
 $<HTMLInputElement>('#bpm').addEventListener('input', () => {
   $<HTMLInputElement>('#tempo-slider').value = $<HTMLInputElement>('#bpm').value;
+  syncTempoSteps();
 });
+for (const [id, direction] of [
+  ['tempo-down', -1],
+  ['tempo-up', 1],
+] as const)
+  $(`#${id}`).addEventListener('click', () => {
+    const bpm = Number($<HTMLInputElement>('#bpm').value) || spec.bpm;
+    const next = direction > 0 ? (Math.floor(bpm / 5) + 1) * 5 : (Math.ceil(bpm / 5) - 1) * 5;
+    $<HTMLInputElement>('#bpm').value = String(Math.max(60, Math.min(240, next)));
+    refresh();
+  });
+const countControls = [
+  { id: 'repeat', key: 'repetitions', offset: 1, max: 15 },
+  { id: 'rest', key: 'restBeats', offset: 0, max: 16 },
+] as const;
+function syncCounts() {
+  for (const { id, key, offset, max } of countControls) {
+    const value = spec[key] - offset;
+    $<HTMLInputElement>(`#${id}-count`).value = String(value);
+    const select = $<HTMLSelectElement>(`#${id}-select`);
+    for (const option of [...select.options]) if (Number(option.value) > 4) option.remove();
+    if (value > 4) select.add(new Option(String(value), String(value)));
+    select.value = String(value);
+    $<HTMLButtonElement>(`[data-count="${id}"][data-step="1"]`).disabled = value >= max;
+    $<HTMLButtonElement>(`[data-count="${id}"][data-step="-1"]`).disabled = value <= 0;
+  }
+}
+for (const { id, key, offset, max } of countControls) {
+  for (const suffix of ['count', 'select']) {
+    const element = $<HTMLInputElement | HTMLSelectElement>(`#${id}-${suffix}`);
+    element.addEventListener('change', () => {
+      $<HTMLInputElement>(`#${key}`).value = String(Number(element.value) + offset);
+    });
+  }
+  for (const step of [-1, 1])
+    $(`[data-count="${id}"][data-step="${step}"]`).addEventListener('click', () => {
+      const input = $<HTMLInputElement>(`#${id}-count`);
+      input.value = String(Math.max(0, Math.min(max, Number(input.value) + step)));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+}
 for (const [id, change] of [
   ['transpose-down', -1],
   ['transpose-up', 1],

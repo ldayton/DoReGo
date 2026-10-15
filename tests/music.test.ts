@@ -21,15 +21,15 @@ const DEFAULT_SPEC = {
   high: 72,
   bpm: 200,
 };
-test('exercise choices include Rossini Scale, with Rossini E3-E5 at 180 BPM as the default', () => {
+test('exercise choices include Rossini Scale, with Arpeggio & Scale E3-E5 at 150 BPM as the default', () => {
   assert.deepEqual(
     Object.values(PATTERNS).map((p) => p.name),
     ['Arpeggio & Scale', 'Octave Arpeggio', 'Rossini Scale', 'Five-Note Scale', 'Major Scale']
   );
-  assert.equal(APP_DEFAULT_SPEC.pattern, 'rossini');
+  assert.equal(APP_DEFAULT_SPEC.pattern, 'arpeggio');
   assert.equal(APP_DEFAULT_SPEC.low, 52);
   assert.equal(APP_DEFAULT_SPEC.high, 76);
-  assert.equal(APP_DEFAULT_SPEC.bpm, 180);
+  assert.equal(APP_DEFAULT_SPEC.bpm, 150);
   assert.equal(DEFAULT_SPEC.direction, 'up');
   assert.equal(DEFAULT_SPEC.countIn, 8);
 });
@@ -165,6 +165,7 @@ test('MIDI preserves fractional note timing and accents every bar of the forward
 test('invalid input and removed exercises/directions are rejected', () => {
   for (const patch of [
     { bpm: 0 },
+    { bpm: 59 },
     { bpm: Infinity },
     { low: 90, high: 60 },
     { key: 12 },
@@ -188,7 +189,7 @@ test('invalid input and removed exercises/directions are rejected', () => {
         low: 24,
         high: 96,
         noteBeats: 4,
-        bpm: 30,
+        bpm: 60,
         repetitions: 16,
       }),
     /10 minutes/

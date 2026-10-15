@@ -85,10 +85,44 @@ try {
     await page.locator('#video-button, #midi-download, #export-dialog, .export-card').count(),
     0
   );
-  assert.equal(await page.locator('#pattern').inputValue(), 'rossini');
+  assert.equal(await page.locator('#pattern').inputValue(), 'arpeggio');
   assert.equal(await page.locator('#low').inputValue(), '52');
   assert.equal(await page.locator('#high').inputValue(), '76');
-  assert.equal(await page.locator('#bpm').inputValue(), '180');
+  assert.equal(await page.locator('#bpm').inputValue(), '150');
+  await page.locator('#low-spin').press('ArrowUp');
+  assert.equal(await page.locator('#low').inputValue(), '53');
+  await page.locator('#low-spin').press('ArrowDown');
+  assert.equal(await page.locator('#low').inputValue(), '52');
+  assert.ok(await page.locator('#low-wheel').isHidden());
+  await page.locator('#low-spin').fill('F#3');
+  await page.locator('#low-spin').press('Enter');
+  assert.equal(await page.locator('#low').inputValue(), '54');
+  await page.locator('#low-choose').click();
+  await page
+    .getByRole('dialog', { name: 'Choose lowest note' })
+    .getByRole('button', { name: 'E3', exact: true })
+    .click();
+  assert.equal(await page.locator('#low').inputValue(), '52');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(
+    () =>
+      document.querySelector('#high-wheel')!.getBoundingClientRect().height > 0 &&
+      document.querySelector('#high-wheel')!.scrollTop ===
+        (Number(document.querySelector<HTMLInputElement>('#high')!.value) - 24) * 32
+  );
+  await page.locator('#high-wheel').evaluate((el) => {
+    el.scrollTop -= 96;
+  });
+  await page.waitForFunction(
+    () => document.querySelector<HTMLInputElement>('#high')!.value === '73'
+  );
+  await page.locator('#high-wheel').evaluate((el) => {
+    el.scrollTop += 96;
+  });
+  await page.waitForFunction(
+    () => document.querySelector<HTMLInputElement>('#high')!.value === '76'
+  );
+  await page.setViewportSize({ width: 1280, height: 900 });
   const playStarted = Date.now();
   await page.locator('#play').click();
   await page.waitForFunction(
@@ -109,6 +143,50 @@ try {
   assert.ok(notice.ok);
   assert.match(await notice.text(), /Creative Commons Attribution 4.0/);
   await page.locator('#how-dialog .close-dialog').click();
+  await page.locator('#tempo-up').click();
+  assert.equal(await page.locator('#bpm').inputValue(), '155');
+  await page.locator('#tempo-down').click();
+  assert.equal(await page.locator('#bpm').inputValue(), '150');
+  await page.locator('.more-settings summary').click();
+  await page.locator('#countIn-trigger').click();
+  const countField = (await page.locator('#countIn-trigger').boundingBox())!;
+  const countMenu = (await page.locator('#countIn-menu').boundingBox())!;
+  assert.ok(Math.abs(countField.x - countMenu.x) < 1);
+  assert.ok(Math.abs(countField.width - countMenu.width) < 1);
+  assert.ok(
+    Math.abs(countMenu.y - countField.y - countField.height - 6) < 1 ||
+      Math.abs(countField.y - countMenu.y - countMenu.height - 6) < 1
+  );
+  await page.locator('#countIn-menu').getByRole('option', { name: '1 bar', exact: true }).click();
+  assert.equal(await page.locator('#countIn').inputValue(), '4');
+  await page.locator('#countIn-trigger').click();
+  await page.locator('#countIn-menu').getByRole('option', { name: '2 bars', exact: true }).click();
+
+  await page.getByRole('button', { name: 'Increase repeats', exact: true }).click();
+  assert.equal(await page.locator('#repeat-count').inputValue(), '2');
+  assert.equal(await page.locator('#repetitions').inputValue(), '3');
+  await page.getByRole('button', { name: 'Decrease repeats', exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.locator('#repeat-count').isHidden());
+  for (const id of ['repeat', 'rest'])
+    assert.deepEqual(await page.locator(`#${id}-select option`).allTextContents(), [
+      'None',
+      '1',
+      '2',
+      '3',
+      '4',
+    ]);
+  await page.locator('#repeat-select').selectOption('0');
+  assert.equal(await page.locator('#repetitions').inputValue(), '1');
+  await page.locator('#repeat-select').selectOption('1');
+  await page.locator('#rest-select').selectOption('0');
+  assert.equal(await page.locator('#restBeats').inputValue(), '0');
+  await page.locator('#rest-select').selectOption('2');
+  await page.locator('#tempo-up').click();
+  assert.equal(await page.locator('#bpm').inputValue(), '155');
+  await page.locator('#tempo-down').click();
+  await page.setViewportSize({ width: 1280, height: 900 });
+
   await page.locator('#pattern').selectOption('rossini');
   assert.equal(await page.locator('#exercise-title').textContent(), 'Rossini Scale');
   assert.ok(await page.locator('#direction').isHidden());

@@ -28,12 +28,14 @@ No account, API key, microphone access, or hosted service is required. CC BY 4.0
 
 ## Practice
 
-- Five exercises: **Arpeggio & Scale**, **Octave Arpeggio**, **Rossini Scale** (default: E3–E5, 180 BPM), **Five-Note Scale**, and **Major Scale**. All except Rossini offer **Ascending** and **Descending** directions; Rossini has a fixed rise-and-return phrase.
+- Five exercises: **Arpeggio & Scale** (default: E3–E5, 150 BPM), **Octave Arpeggio**, **Rossini Scale**, **Five-Note Scale**, and **Major Scale**. All except Rossini offer **Ascending** and **Descending** directions; Rossini has a fixed rise-and-return phrase.
 - Choose your lowest/highest vocal notes and direction. Major Scale instead uses a single Key selector for the starting note, including its octave; the other exercises move by semitone through your range.
+- Desktop note fields accept typed names such as E3 or F#4 and open a note grid organized by octave. Mobile uses snapping swipe wheels. Arrow keys move by semitone and Page Up/Down by octave.
 - Transpose the key and range together with the minus/plus buttons.
-- Adjust tempo (30–240 BPM), rounds, inter-round rests, count-in, and volume. Sound uses the sampled bitKlavier Steinway Grand with fixed natural articulation. All beats are quarter-note beats. The default count-in is two bars of 4/4 (eight beats), displayed as two labeled four-beat groups with the active beat highlighted and each downbeat accented.
+- Adjust tempo (60–240 BPM), rounds, inter-round rests, count-in, and volume. Sound uses the sampled bitKlavier Steinway Grand with fixed natural articulation. All beats are quarter-note beats. The default count-in is two bars of 4/4 (eight beats), displayed as two labeled four-beat groups with the active beat highlighted and each downbeat accented.
 - Piano samples warm up automatically before playback. A “Loading...” indicator appears immediately while preparing; Play becomes available as soon as the selected exercise is ready; failed loads offer a retry.
-- Exercise, range, tempo, direction, and other preferences are saved automatically in browser local storage and restored on return. New users start with Rossini E3–E5 at 180 BPM.
+- Exercise, range, tempo, direction, and other preferences are saved automatically in browser local storage and restored on return. New users start with Arpeggio & Scale E3–E5 at 150 BPM.
+- Tempo −/+ buttons step by 5 BPM. Repeats count additional passes (None means one pass); repeats and rest use stacked arrows on desktop and None–4 dropdowns on mobile.
 - Optional metronome.
 - Play/pause, scrub, restart, and fullscreen. Space toggles playback, R restarts, F toggles fullscreen when a form control is not focused. Editing settings resets playback so the display and sound use the same exercise.
 
@@ -53,7 +55,7 @@ npm run export -- video --output exercise.mp4
 npm run export -- video --spec exercise.json --height 1080 --output exercise.mp4
 ```
 
-Without a spec file, exports use Rossini E3–E5 at 180 BPM. Use `--url` for a different local server URL. Ctrl+C cancels a video export.
+Without a spec file, exports use Arpeggio & Scale E3–E5 at 150 BPM. Use `--url` for a different local server URL. Ctrl+C cancels a video export.
 
 **MIDI** exports directly to the requested file without a running server. It contains guide notes, tempo, and percussion-channel count-in/metronome clicks when enabled. A timed all-notes-off controller preserves the final slot. Guide volume/timbre and visual preferences are preview/video settings; MIDI uses a standard piano program and fixed guide-note velocity for downstream editing.
 

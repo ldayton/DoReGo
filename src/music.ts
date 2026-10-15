@@ -107,12 +107,12 @@ export interface Scene {
   progress: number;
 }
 export const DEFAULT_SPEC: ExerciseSpec = {
-  pattern: 'rossini',
+  pattern: 'arpeggio',
   key: 4,
   low: 52,
   high: 76,
   direction: 'up',
-  bpm: 180,
+  bpm: 150,
   noteBeats: 1,
   repetitions: 2,
   restBeats: 2,
@@ -169,7 +169,7 @@ export function validateSpec(input: unknown): ExerciseSpec {
     key: num('key', 0, 11, true),
     low: num('low', 24, 96, true),
     high: num('high', 24, 96, true),
-    bpm: num('bpm', 30, 240),
+    bpm: num('bpm', 60, 240),
     noteBeats: num('noteBeats', 0.25, 4),
     repetitions: num('repetitions', 1, 16, true),
     restBeats: num('restBeats', 0, 16, true),
