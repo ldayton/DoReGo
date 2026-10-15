@@ -8,7 +8,7 @@ import {
   type Exercise,
 } from './music';
 
-import { keyboardRange } from './keyboard-layout';
+import { keyboardView, whiteKeyPosition, vocalPhraseNotes } from './keyboard-layout';
 
 const C = {
   paper: '#faf9f4',
@@ -62,21 +62,24 @@ export function drawExercise(
   canvas: HTMLCanvasElement,
   exercise: Exercise,
   seconds: number,
-  mobile = false
+  mobile = false,
+  reducedMotion = false
 ) {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas rendering is unavailable in this browser.');
   const { spec, notes } = exercise;
   const scene = stateAt(exercise, seconds);
   const practice = practiceAt(exercise, seconds);
+  const keyboardNotes = mobile ? vocalPhraseNotes(exercise, practice.current) : notes;
   const sounding = new Set(
-    notes
+    keyboardNotes
       .filter((n) => n.onsetBeat <= scene.beat && scene.beat < n.onsetBeat + n.durationBeats)
       .map((n) => n.midi)
   );
   if (scene.phase === 'ready') {
     sounding.clear();
-    for (const n of notes) if (n.onsetBeat === notes[0].onsetBeat) sounding.add(n.midi);
+    for (const n of keyboardNotes)
+      if (n.onsetBeat === keyboardNotes[0].onsetBeat) sounding.add(n.midi);
   }
   ctx.save();
   ctx.scale(canvas.width / WIDTH, canvas.height / (mobile ? MOBILE_HEIGHT : HEIGHT));
@@ -254,16 +257,21 @@ export function drawExercise(
         );
     }
   }
-  const { low, high } = keyboardRange(exercise, practice.current, mobile);
+  const { low, high, left, count } = keyboardView(exercise, seconds, mobile, reducedMotion);
   const whites: number[] = [];
   for (let n = low; n <= high; n++) if (![1, 3, 6, 8, 10].includes(n % 12)) whites.push(n);
-  const width = Math.min(mobile ? 1480 : 1300, whites.length * (mobile ? 120 : 91)),
+  const width = mobile ? 1480 : Math.min(1300, count * 91),
     x0 = (WIDTH - width) / 2,
-    keyW = width / whites.length,
+    keyW = width / count,
     y0 = mobile ? 930 : 637,
     keyH = mobile ? 500 : 170;
   rounded(ctx, x0 - 8, y0 - 8, width + 16, keyH + 16, 16, '#dde1d6');
-  for (const [i, n] of whites.entries()) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x0, y0, width, keyH);
+  ctx.clip();
+  for (const n of whites) {
+    const i = whiteKeyPosition(n) - left;
     const active = sounding.has(n);
     const inRange = n >= spec.low && n <= spec.high;
     rounded(
@@ -289,8 +297,7 @@ export function drawExercise(
   }
   for (let n = low; n <= high; n++) {
     if (![1, 3, 6, 8, 10].includes(n % 12)) continue;
-    const prevIndex = whites.indexOf(n - 1);
-    if (prevIndex < 0) continue;
+    const prevIndex = whiteKeyPosition(n - 1) - left;
     const active = sounding.has(n);
     rounded(
       ctx,
@@ -302,10 +309,10 @@ export function drawExercise(
       active ? '#a8c769' : C.ink
     );
   }
+  ctx.restore();
   if (spec.transition !== null && spec.transition >= low && spec.transition <= high) {
-    let index = whites.indexOf(spec.transition);
-    const black = index < 0;
-    if (black) index = whites.indexOf(spec.transition - 1);
+    const black = [1, 3, 6, 8, 10].includes(spec.transition % 12);
+    const index = whiteKeyPosition(spec.transition) - left;
     const x = x0 + (index + (black ? 1 : 0.5)) * keyW;
     ctx.setLineDash([4, 5]);
     ctx.strokeStyle = C.accent;

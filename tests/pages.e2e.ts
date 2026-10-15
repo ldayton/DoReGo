@@ -56,7 +56,7 @@ try {
   });
   await page.goto(base);
   await page.locator('#exercise-title').waitFor();
-  await page.getByRole('button', { name: 'Piano warming up…' }).waitFor();
+  await page.getByRole('button', { name: 'Loading...' }).waitFor();
   assert.ok(await page.locator('#play').isDisabled());
   assert.equal(await page.locator('#play').getAttribute('aria-busy'), 'true');
   assert.equal(await page.locator('.piano-warmup i').count(), 3);

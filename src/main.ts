@@ -195,6 +195,8 @@ const canvas = $<HTMLCanvasElement>('#stage');
 canvas.width = WIDTH;
 canvas.height = HEIGHT;
 const mobileQuery = window.matchMedia('(max-width: 760px)');
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+reducedMotionQuery.addEventListener('change', () => update());
 let mobileStage = false;
 function resizeStage() {
   mobileStage =
@@ -347,11 +349,18 @@ function persist() {
 }
 let pianoWarming = true;
 let pianoFailed = false;
+let showPianoLoading = false;
 let warmupGeneration = 0;
 async function warmPiano() {
   const generation = ++warmupGeneration;
   pianoWarming = true;
   pianoFailed = false;
+  const loadingTimer = setTimeout(() => {
+    if (generation === warmupGeneration && pianoWarming) {
+      showPianoLoading = true;
+      update();
+    }
+  }, 300);
   update();
   try {
     await player.prepare(exercise);
@@ -362,7 +371,10 @@ async function warmPiano() {
     pianoWarming = false;
     pianoFailed = true;
     toast(error instanceof Error ? error.message : 'Could not warm up the piano. Try again.');
+  } finally {
+    clearTimeout(loadingTimer);
   }
+  showPianoLoading = false;
   update();
 }
 function setError(message: string | null) {
@@ -422,7 +434,7 @@ let announced = '';
 function update() {
   const duration = secondsAt(exercise.totalBeats, spec.bpm);
   const time = mode === 'ready' ? -1 : position;
-  drawExercise(canvas, exercise, time, mobileStage);
+  drawExercise(canvas, exercise, time, mobileStage, reducedMotionQuery.matches);
   const scene = stateAt(exercise, time);
   const practice = practiceAt(exercise, time);
   const description =
@@ -443,8 +455,8 @@ function update() {
     exercise.title ??
     `${PATTERNS[spec.pattern].name} (${spec.direction === 'down' ? 'Descending' : 'Ascending'})`;
   const button = $('#play');
-  const label = pianoWarming
-    ? 'Piano warming up…'
+  const label = showPianoLoading
+    ? 'Loading...'
     : pianoFailed
       ? 'Retry piano'
       : mode === 'playing'
@@ -454,11 +466,11 @@ function update() {
           : mode === 'complete'
             ? 'Replay'
             : 'Play';
-  const buttonMode = pianoWarming ? 'warming' : pianoFailed ? 'failed' : mode;
+  const buttonMode = showPianoLoading ? 'warming' : pianoFailed ? 'failed' : mode;
   $<HTMLButtonElement>('#play').disabled = pianoWarming || !$('#form-error').hidden;
   button.setAttribute('aria-busy', String(pianoWarming));
   if (button.dataset.mode !== buttonMode) {
-    button.innerHTML = `${pianoWarming ? '<span class="piano-warmup" aria-hidden="true"><i></i><i></i><i></i></span>' : `<i data-lucide="${mode === 'playing' ? 'pause' : 'play'}"></i>`}<span>${label}</span>`;
+    button.innerHTML = `${showPianoLoading ? '<span class="piano-warmup" aria-hidden="true"><i></i><i></i><i></i></span>' : `<i data-lucide="${mode === 'playing' ? 'pause' : 'play'}"></i>`}<span>${label}</span>`;
     button.dataset.mode = buttonMode;
     iconify();
   }

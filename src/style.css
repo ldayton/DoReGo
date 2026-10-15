@@ -616,10 +616,17 @@ input[type='range']::-moz-range-thumb {
   border-radius: 8px;
   background: var(--green);
   height: 42px;
-  padding: 0 20px;
+  white-space: nowrap;
   font-size: 12px;
   font-weight: 600;
-  min-width: 128px;
+  width: 128px;
+  flex: 0 0 128px;
+  padding: 0 10px;
+  line-height: 14px;
+}
+.play-button[aria-busy='true'] {
+  opacity: 1;
+  cursor: progress;
 }
 .play-button svg {
   width: 15px;
