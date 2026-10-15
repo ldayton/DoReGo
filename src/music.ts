@@ -107,12 +107,12 @@ export interface Scene {
   progress: number;
 }
 export const DEFAULT_SPEC: ExerciseSpec = {
-  pattern: 'arpeggio',
-  key: 0,
-  low: 60,
-  high: 72,
+  pattern: 'rossini',
+  key: 4,
+  low: 52,
+  high: 76,
   direction: 'up',
-  bpm: 200,
+  bpm: 180,
   noteBeats: 1,
   repetitions: 2,
   restBeats: 2,

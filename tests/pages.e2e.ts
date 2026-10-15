@@ -1,8 +1,7 @@
 import { chromium } from 'playwright';
-import { Midi } from '../src/midi';
+import { DEFAULT_SPEC } from '../src/music';
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 
 const base = process.env.PAGES_TEST_URL || 'http://127.0.0.1:4318/DoReGo/';
 const server = process.env.PAGES_TEST_URL
@@ -67,6 +66,10 @@ try {
   assert.equal(await page.locator('#play').innerText(), 'Play');
   assert.ok(samples.length > 0, 'Piano samples should load before the first click');
   const preparedSamples = samples.length;
+  assert.equal(
+    await page.locator('#save-preset, #saved-presets, #delete-preset, #save-dialog').count(),
+    0
+  );
   assert.equal(await page.locator('#gate').count(), 0);
   assert.equal(await page.locator('#noteBeats').count(), 0);
   assert.equal(await page.locator('#solfege').count(), 0);
@@ -78,8 +81,14 @@ try {
     '2 bars',
   ]);
   assert.equal(await page.locator('.brand').getAttribute('href'), '/DoReGo/');
-  assert.ok(await page.locator('#video-button').isHidden());
-  assert.equal(await page.locator('#bpm').inputValue(), '200');
+  assert.equal(
+    await page.locator('#video-button, #midi-download, #export-dialog, .export-card').count(),
+    0
+  );
+  assert.equal(await page.locator('#pattern').inputValue(), 'rossini');
+  assert.equal(await page.locator('#low').inputValue(), '52');
+  assert.equal(await page.locator('#high').inputValue(), '76');
+  assert.equal(await page.locator('#bpm').inputValue(), '180');
   const playStarted = Date.now();
   await page.locator('#play').click();
   await page.waitForFunction(
@@ -100,11 +109,6 @@ try {
   assert.ok(notice.ok);
   assert.match(await notice.text(), /Creative Commons Attribution 4.0/);
   await page.locator('#how-dialog .close-dialog').click();
-  const downloadPromise = page.waitForEvent('download');
-  await page.locator('#midi-download').click();
-  const download = await downloadPromise;
-  const midi = await readFile((await download.path())!);
-  assert.equal(midi.toString('ascii', 0, 4), 'MThd');
   await page.locator('#pattern').selectOption('rossini');
   assert.equal(await page.locator('#exercise-title').textContent(), 'Rossini Scale');
   assert.ok(await page.locator('#direction').isHidden());
@@ -113,12 +117,6 @@ try {
     Number(await page.locator('#high').inputValue()) -
       Number(await page.locator('#low').inputValue()) >=
       19
-  );
-  const rossiniDownloadPromise = page.waitForEvent('download');
-  await page.locator('#midi-download').click();
-  const rossiniDownload = await rossiniDownloadPromise;
-  assert.ok(
-    (await readFile((await rossiniDownload.path())!)).includes(Buffer.from('Rossini Scale'))
   );
   await page.locator('#pattern').selectOption('arpeggio');
   assert.ok(await page.locator('#direction').isVisible());
@@ -134,9 +132,6 @@ try {
     await page.locator('input[name="direction"][value="down"]').check();
     assert.equal(await page.locator('#exercise-title').textContent(), `${label} (Descending)`);
     assert.ok(await page.locator('#form-error').isHidden());
-    const exported = page.waitForEvent('download');
-    await page.locator('#midi-download').click();
-    assert.ok((await readFile((await (await exported).path())!)).includes(Buffer.from(label)));
     await page.locator('input[name="direction"][value="up"]').check();
   }
   await page.reload();
@@ -157,13 +152,6 @@ try {
     await page.locator('#key').selectOption('62');
     assert.equal(await page.locator('#low').inputValue(), direction === 'up' ? '62' : '50');
     assert.equal(await page.locator('#high').inputValue(), direction === 'up' ? '74' : '62');
-    const downloadEvent = page.waitForEvent('download');
-    await page.locator('#midi-download').click();
-    const midi = new Midi(await readFile((await (await downloadEvent).path())!));
-    assert.deepEqual(
-      midi.tracks[0].notes.slice(0, 8).map((n) => n.midi),
-      direction === 'up' ? [62, 64, 66, 67, 69, 71, 73, 74] : [62, 61, 59, 57, 55, 54, 52, 50]
-    );
   }
   await page.reload();
   assert.equal(await page.locator('#key').inputValue(), '62');
@@ -184,9 +172,45 @@ try {
     const canvas = document.querySelector('#stage') as HTMLCanvasElement;
     return canvas.width === 1600 && canvas.height === 900;
   });
+  const preferencesPage = await browser.newPage();
+  const remembered = {
+    ...DEFAULT_SPEC,
+    pattern: 'fiveNote',
+    low: 48,
+    high: 67,
+    bpm: 156,
+    direction: 'down',
+    countIn: 4,
+    volume: -12,
+    restBeats: 4,
+    repetitions: 3,
+    metronome: true,
+    startingChords: false,
+  };
+  await preferencesPage.addInitScript((spec) => {
+    if (!localStorage.getItem('dorego.current'))
+      localStorage.setItem('dorego.current', JSON.stringify(spec));
+  }, remembered);
+  await preferencesPage.goto(base);
+  for (const [id, value] of Object.entries(remembered)) {
+    const field = preferencesPage.locator(`#${id}`);
+    if ((await field.count()) && typeof value !== 'boolean' && !['key', 'direction'].includes(id))
+      assert.equal(await field.inputValue(), String(value), `Stored ${id} was overwritten`);
+  }
+  assert.ok(await preferencesPage.locator('input[name="direction"][value="down"]').isChecked());
+  assert.ok(await preferencesPage.locator('#metronome').isChecked());
+  assert.ok(!(await preferencesPage.locator('#startingChords').isChecked()));
+  await preferencesPage.locator('#bpm').fill('194');
+  await preferencesPage.locator('#bpm').press('Tab');
+  await preferencesPage.reload();
+  assert.equal(await preferencesPage.locator('#bpm').inputValue(), '194');
+  assert.equal(await preferencesPage.locator('#pattern').inputValue(), 'fiveNote');
+  assert.equal(await preferencesPage.locator('#low').inputValue(), '48');
+  assert.equal(await preferencesPage.locator('#high').inputValue(), '67');
+  await preferencesPage.close();
   assert.deepEqual(errors, []);
   console.log(
-    `PASS: ${base} loads with working piano samples, playback, MIDI, credits, and static-only controls.`
+    `PASS: ${base} loads with working piano samples, playback, credits, defaults, and no export UI.`
   );
 } finally {
   await browser?.close();

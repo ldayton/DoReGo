@@ -7,6 +7,7 @@ test('resuming inside a note retains its sample offset and remaining duration', 
   const exercise = generateExercise({
     ...DEFAULT_SPEC,
     pattern: 'major',
+    key: 0,
     low: 60,
     high: 64,
     bpm: 60,

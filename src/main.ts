@@ -3,7 +3,6 @@ import {
   Play,
   Pause,
   RotateCcw,
-  Download,
   ArrowUpRight,
   ChevronDown,
   Plus,
@@ -12,10 +11,7 @@ import {
   Music2,
   ArrowDownRight,
   X,
-  Check,
-  Bookmark,
   Volume2,
-  ArrowRight,
 } from 'lucide';
 import {
   DEFAULT_SPEC,
@@ -32,17 +28,14 @@ import {
 } from './music';
 import { Player, RELEASE_TAIL } from './audio';
 import { drawExercise, WIDTH, HEIGHT, MOBILE_HEIGHT } from './render';
-import { exportMidi } from './midi';
 import './style.css';
 
 const $ = <T extends HTMLElement = HTMLElement>(selector: string) =>
   document.querySelector<T>(selector)!;
-const staticHosting = import.meta.env.MODE === 'pages';
 const icons = {
   Play,
   Pause,
   RotateCcw,
-  Download,
   ArrowUpRight,
   ChevronDown,
   Plus,
@@ -51,10 +44,7 @@ const icons = {
   Music2,
   ArrowDownRight,
   X,
-  Check,
-  Bookmark,
   Volume2,
-  ArrowRight,
 };
 function iconify() {
   createIcons({ icons, attrs: { 'stroke-width': 1.7 } });
@@ -66,46 +56,12 @@ function savedSpec(): ExerciseSpec {
     return { ...DEFAULT_SPEC };
   }
 }
-// Upgrade the previous default once; later explicit one-bar choices remain intact.
-try {
-  if (localStorage.getItem('dorego.countInVersion') !== '2') {
-    const current = JSON.parse(localStorage.getItem('dorego.current') || 'null');
-    if (current?.countIn === 4) {
-      current.countIn = 8;
-      localStorage.setItem('dorego.current', JSON.stringify(current));
-    }
-    const presets = JSON.parse(localStorage.getItem('dorego.presets') || '[]');
-    if (Array.isArray(presets)) {
-      for (const preset of presets) if (preset?.spec?.countIn === 4) preset.spec.countIn = 8;
-      localStorage.setItem('dorego.presets', JSON.stringify(presets));
-    }
-    localStorage.setItem('dorego.countInVersion', '2');
-  }
-} catch {
-  /* Storage is optional. */
-}
-try {
-  if (localStorage.getItem('dorego.volumeDefaultVersion') !== '1') {
-    const current = savedSpec();
-    if (current.volume === -12) {
-      current.volume = 0;
-      localStorage.setItem('dorego.current', JSON.stringify(current));
-    }
-    localStorage.setItem('dorego.volumeDefaultVersion', '1');
-  }
-} catch {
-  /* Storage is optional. */
-}
 let spec = savedSpec();
 let exercise = generateExercise(spec);
 let mode: 'ready' | 'playing' | 'paused' | 'complete' = 'ready';
 let position = 0;
 let raf = 0;
 const player = new Player();
-let jobId: string | null = null;
-let exportActive = false;
-let exportGeneration = 0;
-let pollTimer: ReturnType<typeof setTimeout>;
 function restoreSpec(input: unknown): ExerciseSpec {
   if (!input || typeof input !== 'object') throw new Error('Invalid saved exercise.');
   const saved = {
@@ -173,7 +129,6 @@ $('#app').innerHTML = `
           </div></details>
           <p id="form-error" class="error-message" role="alert" hidden></p>
         </form>
-        <div class="preset-footer"><button class="quiet-button" id="save-preset"><i data-lucide="bookmark"></i> Save preset</button><select id="saved-presets" aria-label="Load or delete a saved preset"><option value="">My presets</option></select><button id="delete-preset" class="icon-button" aria-label="Delete selected preset" title="Delete selected preset" disabled><i data-lucide="x"></i></button></div>
       </aside>
       <section class="workspace" aria-label="Practice studio">
         <div class="exercise-heading"><div><h2 id="exercise-title"></h2></div></div>
@@ -183,11 +138,8 @@ $('#app').innerHTML = `
       </section>
     </div>
 
-    <section class="export-card" aria-label="Exports"><div class="export-icon"><i data-lucide="music-2"></i></div><div class="export-copy"><h3>Take your practice with you.</h3><p>${staticHosting ? 'MIDI for your music tools.' : 'MIDI for your music tools. A video to sing along anywhere.'}</p></div><div class="export-actions"><button class="secondary-button" id="midi-download"><i data-lucide="download"></i> MIDI</button><button class="dark-button" id="video-button" ${staticHosting ? 'hidden' : ''}>Export video <i data-lucide="arrow-up-right"></i></button></div></section>
   </main>
-  <dialog id="export-dialog" class="dialog"><div class="dialog-top"><button class="icon-button close-dialog" aria-label="Close video export"><i data-lucide="x"></i></button></div><h2>Export video</h2><label class="field">Video quality<select id="video-quality"><option value="720">720p · 30 fps</option><option value="1080">1080p · 30 fps</option></select></label><div id="export-progress" hidden><div class="progress-track"><div id="export-bar"></div></div><p id="export-stage" role="status">Getting ready…</p></div><p id="export-error" class="error-message" role="alert" hidden></p><a id="video-download" class="dark-button download-link" hidden>Download MP4 <i data-lucide="download"></i></a><div class="dialog-actions"><button class="secondary-button" id="cancel-export" hidden>Cancel export</button><button class="dark-button" id="start-export">Create video <i data-lucide="arrow-up-right"></i></button></div><p class="field-hint">Downloads expire after one hour.</p></dialog>
-  <dialog id="save-dialog" class="dialog"><form id="save-form"><div class="dialog-top"><button type="button" class="icon-button close-dialog" aria-label="Close save preset"><i data-lucide="x"></i></button></div><h2>Save preset</h2><label class="field">Preset name<input id="preset-name" placeholder="My morning warm-up" maxlength="60" required /></label><button class="dark-button" type="submit">Save preset <i data-lucide="bookmark"></i></button></form></dialog>
-  <dialog id="how-dialog" class="dialog"><div class="dialog-top"><button class="icon-button close-dialog" aria-label="Close how it works"><i data-lucide="x"></i></button></div><h2>Help</h2><ol class="how-steps"><li>Choose an exercise, range, and tempo.</li><li>Press Play and follow the notes.</li><li>${staticHosting ? 'Save a preset or export MIDI.' : 'Save a preset or export MIDI / video.'}</li></ol><p class="field-hint">Shortcuts: Space to play or pause. R to restart. F for fullscreen.</p><p class="field-hint"><a href="${import.meta.env.BASE_URL}samples/bitklavier/NOTICE.txt" target="_blank" rel="noopener">bitKlavier Grand recordings &amp; credits · CC BY 4.0</a></p></dialog>
+  <dialog id="how-dialog" class="dialog"><div class="dialog-top"><button class="icon-button close-dialog" aria-label="Close how it works"><i data-lucide="x"></i></button></div><h2>Help</h2><ol class="how-steps"><li>Choose an exercise, range, and tempo.</li><li>Press Play and follow the notes.</li><li>Adjust the exercise whenever you like.</li></ol><p class="field-hint">Shortcuts: Space to play or pause. R to restart. F for fullscreen.</p><p class="field-hint"><a href="${import.meta.env.BASE_URL}samples/bitklavier/NOTICE.txt" target="_blank" rel="noopener">bitKlavier Grand recordings &amp; credits · CC BY 4.0</a></p></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
 `;
 
@@ -349,18 +301,11 @@ function persist() {
 }
 let pianoWarming = true;
 let pianoFailed = false;
-let showPianoLoading = false;
 let warmupGeneration = 0;
 async function warmPiano() {
   const generation = ++warmupGeneration;
   pianoWarming = true;
   pianoFailed = false;
-  const loadingTimer = setTimeout(() => {
-    if (generation === warmupGeneration && pianoWarming) {
-      showPianoLoading = true;
-      update();
-    }
-  }, 300);
   update();
   try {
     await player.prepare(exercise);
@@ -371,18 +316,14 @@ async function warmPiano() {
     pianoWarming = false;
     pianoFailed = true;
     toast(error instanceof Error ? error.message : 'Could not warm up the piano. Try again.');
-  } finally {
-    clearTimeout(loadingTimer);
   }
-  showPianoLoading = false;
   update();
 }
 function setError(message: string | null) {
   const el = $('#form-error');
   el.textContent = message;
   el.hidden = !message;
-  for (const id of ['play', 'midi-download', 'video-button', 'save-preset'])
-    $<HTMLButtonElement>(`#${id}`).disabled = !!message;
+  $<HTMLButtonElement>('#play').disabled = !!message || pianoWarming;
 }
 function stop(reset = true) {
   player.stop();
@@ -434,7 +375,10 @@ let announced = '';
 function update() {
   const duration = secondsAt(exercise.totalBeats, spec.bpm);
   const time = mode === 'ready' ? -1 : position;
-  drawExercise(canvas, exercise, time, mobileStage, reducedMotionQuery.matches);
+  const layout = drawExercise(canvas, exercise, time, mobileStage, reducedMotionQuery.matches);
+  const inset = `${layout.keyboardInsetPercent}%`;
+  if ($('#practice-card').style.getPropertyValue('--keyboard-inset') !== inset)
+    $('#practice-card').style.setProperty('--keyboard-inset', inset);
   const scene = stateAt(exercise, time);
   const practice = practiceAt(exercise, time);
   const description =
@@ -455,7 +399,7 @@ function update() {
     exercise.title ??
     `${PATTERNS[spec.pattern].name} (${spec.direction === 'down' ? 'Descending' : 'Ascending'})`;
   const button = $('#play');
-  const label = showPianoLoading
+  const label = pianoWarming
     ? 'Loading...'
     : pianoFailed
       ? 'Retry piano'
@@ -466,11 +410,11 @@ function update() {
           : mode === 'complete'
             ? 'Replay'
             : 'Play';
-  const buttonMode = showPianoLoading ? 'warming' : pianoFailed ? 'failed' : mode;
+  const buttonMode = pianoWarming ? 'warming' : pianoFailed ? 'failed' : mode;
   $<HTMLButtonElement>('#play').disabled = pianoWarming || !$('#form-error').hidden;
   button.setAttribute('aria-busy', String(pianoWarming));
   if (button.dataset.mode !== buttonMode) {
-    button.innerHTML = `${showPianoLoading ? '<span class="piano-warmup" aria-hidden="true"><i></i><i></i><i></i></span>' : `<i data-lucide="${mode === 'playing' ? 'pause' : 'play'}"></i>`}<span>${label}</span>`;
+    button.innerHTML = `${pianoWarming ? '<span class="piano-warmup" aria-hidden="true"><i></i><i></i><i></i></span>' : `<i data-lucide="${mode === 'playing' ? 'pause' : 'play'}"></i>`}<span>${label}</span>`;
     button.dataset.mode = buttonMode;
     iconify();
   }
@@ -555,90 +499,6 @@ document.addEventListener('keydown', (event) => {
   if (event.key.toLowerCase() === 'r') stop();
   if (event.key.toLowerCase() === 'f') void toggleFullscreen();
 });
-function download(bytes: Uint8Array, type: string, name: string) {
-  const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-}
-$('#midi-download').addEventListener('click', () => {
-  download(exportMidi(exercise), 'audio/midi', 'DoReGo-exercise.mid');
-  toast('Your MIDI is ready.');
-});
-
-type StoredPreset = { id: string; name: string; spec: ExerciseSpec };
-function presets(): StoredPreset[] {
-  try {
-    const data = JSON.parse(localStorage.getItem('dorego.presets') || '[]');
-    if (!Array.isArray(data)) return [];
-    return data.filter(
-      (p) =>
-        typeof p.id === 'string' &&
-        typeof p.name === 'string' &&
-        (() => {
-          try {
-            p.spec = restoreSpec(p.spec);
-            return true;
-          } catch {
-            return false;
-          }
-        })()
-    );
-  } catch {
-    return [];
-  }
-}
-function showPresets(selected = '') {
-  const select = $<HTMLSelectElement>('#saved-presets');
-  select.replaceChildren(new Option('My presets', ''));
-  for (const preset of presets()) select.add(new Option(preset.name, preset.id));
-  select.value = selected;
-  $<HTMLButtonElement>('#delete-preset').disabled = !selected;
-}
-$('#save-preset').addEventListener('click', () => {
-  $<HTMLInputElement>('#preset-name').value = '';
-  $<HTMLDialogElement>('#save-dialog').showModal();
-});
-$('#save-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  const name = $<HTMLInputElement>('#preset-name').value.trim();
-  if (!name) return;
-  const current = presets();
-  if (current.length >= 50) return toast('You have 50 presets. Delete one to make room.');
-  const preset = { id: crypto.randomUUID(), name, spec: { ...spec } };
-  try {
-    localStorage.setItem('dorego.presets', JSON.stringify([...current, preset]));
-    showPresets(preset.id);
-    $<HTMLDialogElement>('#save-dialog').close();
-    toast('Preset saved.');
-  } catch {
-    toast('Your browser could not save this preset.');
-  }
-});
-$('#saved-presets').addEventListener('change', () => {
-  const preset = presets().find((p) => p.id === $<HTMLSelectElement>('#saved-presets').value);
-  $<HTMLButtonElement>('#delete-preset').disabled = !preset;
-  if (preset) {
-    spec = { ...preset.spec };
-    populate();
-    refresh();
-    toast(`Loaded ${preset.name}`);
-  }
-});
-$('#delete-preset').addEventListener('click', () => {
-  try {
-    localStorage.setItem(
-      'dorego.presets',
-      JSON.stringify(presets().filter((p) => p.id !== $<HTMLSelectElement>('#saved-presets').value))
-    );
-    showPresets();
-    toast('Preset deleted.');
-  } catch {
-    toast('Could not delete this preset.');
-  }
-});
 $('#how-button').addEventListener('click', () => $<HTMLDialogElement>('#how-dialog').showModal());
 document
   .querySelectorAll<HTMLButtonElement>('.close-dialog')
@@ -656,97 +516,7 @@ document.querySelectorAll<HTMLDialogElement>('dialog').forEach((dialog) =>
       dialog.close();
   })
 );
-$('#video-button').addEventListener('click', () => {
-  stop(false);
-  $<HTMLDialogElement>('#export-dialog').showModal();
-});
-
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(path, options);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
-  return data as T;
-}
-interface Job {
-  id: string;
-  status: string;
-  progress: number;
-  stage: string;
-  error: string | null;
-}
-function exportState(active: boolean) {
-  exportActive = active;
-  $('#cancel-export').hidden = !active;
-  $<HTMLButtonElement>('#start-export').disabled = active;
-  $<HTMLSelectElement>('#video-quality').disabled = active;
-}
-function exportFailure(error: unknown) {
-  exportState(false);
-  $('#export-error').textContent =
-    error instanceof Error ? error.message : 'Export failed. Please try again.';
-  $('#export-error').hidden = false;
-  $('#export-stage').textContent = 'Could not complete this export';
-}
-async function pollExport(generation: number) {
-  if (!jobId || generation !== exportGeneration) return;
-  try {
-    const job = await request<Job>(`/api/exports/${jobId}`);
-    if (generation !== exportGeneration) return;
-    $('#export-bar').style.width = `${job.progress * 100}%`;
-    $('#export-stage').textContent = job.stage;
-    if (job.status === 'complete') {
-      exportState(false);
-      const link = $<HTMLAnchorElement>('#video-download');
-      link.href = `/api/exports/${job.id}/download`;
-      link.hidden = false;
-      toast('Your practice video is ready.');
-    } else if (job.status === 'failed') exportFailure(new Error(job.error || 'Export failed.'));
-    else if (job.status === 'cancelled') exportState(false);
-    else pollTimer = setTimeout(() => void pollExport(generation), 700);
-  } catch (error) {
-    if (generation === exportGeneration) exportFailure(error);
-  }
-}
-$('#start-export').addEventListener('click', async () => {
-  if (exportActive) return;
-  const generation = ++exportGeneration;
-  clearTimeout(pollTimer);
-  jobId = null;
-  $('#export-error').hidden = true;
-  $('#video-download').hidden = true;
-  $('#export-progress').hidden = false;
-  $('#export-bar').style.width = '0%';
-  $('#export-stage').textContent = 'Opening the renderer';
-  exportState(true);
-  // Cancellation becomes available once the server has returned a job ID.
-  $<HTMLButtonElement>('#cancel-export').disabled = true;
-  try {
-    const job = await request<Job>('/api/exports', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ spec, height: Number($<HTMLSelectElement>('#video-quality').value) }),
-    });
-    jobId = job.id;
-    $<HTMLButtonElement>('#cancel-export').disabled = false;
-    void pollExport(generation);
-  } catch (error) {
-    exportFailure(error);
-  }
-});
-$('#cancel-export').addEventListener('click', async () => {
-  if (!jobId) return;
-  try {
-    await request(`/api/exports/${jobId}`, { method: 'DELETE' });
-    ++exportGeneration;
-    clearTimeout(pollTimer);
-    exportState(false);
-    $('#export-stage').textContent = 'Export cancelled. You can start again anytime.';
-  } catch (error) {
-    toast(error instanceof Error ? error.message : 'Could not cancel the export.');
-  }
-});
 populate();
-showPresets();
 iconify();
 resizeStage();
 void warmPiano();

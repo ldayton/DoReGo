@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  DEFAULT_SPEC,
+  DEFAULT_SPEC as APP_DEFAULT_SPEC,
   PATTERNS,
   generateExercise,
   metronomeBeat,
@@ -13,12 +13,23 @@ import {
 } from '../src/music';
 import { Midi, exportMidi } from '../src/midi';
 
-test('exercise choices include Rossini Scale, with ascending Arpeggio as the default', () => {
+const DEFAULT_SPEC = {
+  ...APP_DEFAULT_SPEC,
+  pattern: 'arpeggio' as const,
+  key: 0,
+  low: 60,
+  high: 72,
+  bpm: 200,
+};
+test('exercise choices include Rossini Scale, with Rossini E3-E5 at 180 BPM as the default', () => {
   assert.deepEqual(
     Object.values(PATTERNS).map((p) => p.name),
     ['Arpeggio & Scale', 'Octave Arpeggio', 'Rossini Scale', 'Five-Note Scale', 'Major Scale']
   );
-  assert.equal(DEFAULT_SPEC.pattern, 'arpeggio');
+  assert.equal(APP_DEFAULT_SPEC.pattern, 'rossini');
+  assert.equal(APP_DEFAULT_SPEC.low, 52);
+  assert.equal(APP_DEFAULT_SPEC.high, 76);
+  assert.equal(APP_DEFAULT_SPEC.bpm, 180);
   assert.equal(DEFAULT_SPEC.direction, 'up');
   assert.equal(DEFAULT_SPEC.countIn, 8);
 });

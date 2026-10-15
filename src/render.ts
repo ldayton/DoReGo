@@ -58,18 +58,44 @@ function text(
   ctx.textBaseline = 'middle';
   ctx.fillText(value, x, y);
 }
+// Center the visible glyphs rather than the font's em box or advance width.
+function centeredGlyphs(
+  ctx: CanvasRenderingContext2D,
+  value: string,
+  x: number,
+  y: number,
+  size: number,
+  color: string
+) {
+  ctx.font = `500 ${size}px Arial, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  const m = ctx.measureText(value);
+  const width = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
+  const height = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+  ctx.fillStyle = color;
+  ctx.fillText(
+    value,
+    x + (m.actualBoundingBoxLeft - m.actualBoundingBoxRight) / 2,
+    y + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2
+  );
+  return { left: x - width / 2, top: y - height / 2, width, height };
+}
 export function drawExercise(
   canvas: HTMLCanvasElement,
   exercise: Exercise,
   seconds: number,
   mobile = false,
-  reducedMotion = false
+  reducedMotion = false,
+  standalone = false
 ) {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas rendering is unavailable in this browser.');
   const { spec, notes } = exercise;
   const scene = stateAt(exercise, seconds);
   const practice = practiceAt(exercise, seconds);
+  const keyboard = keyboardView(exercise, seconds, mobile, reducedMotion);
+  const keyboardWidth = mobile ? 1480 : Math.min(1300, keyboard.count * 91);
   const keyboardNotes = mobile ? vocalPhraseNotes(exercise, practice.current) : notes;
   const sounding = new Set(
     keyboardNotes
@@ -85,34 +111,9 @@ export function drawExercise(
   ctx.scale(canvas.width / WIDTH, canvas.height / (mobile ? MOBILE_HEIGHT : HEIGHT));
   ctx.fillStyle = C.paper;
   ctx.fillRect(0, 0, WIDTH, mobile ? MOBILE_HEIGHT : HEIGHT);
-  ctx.strokeStyle = '#eef0e7';
-  ctx.lineWidth = 1;
-  for (let x = 0; x < WIDTH; x += 48) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, mobile ? MOBILE_HEIGHT : HEIGHT);
-    ctx.stroke();
-  }
-  for (let y = 0; y < (mobile ? MOBILE_HEIGHT : HEIGHT); y += 48) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(WIDTH, y);
-    ctx.stroke();
-  }
-  // Soft opaque reading area keeps the note visually quiet.
-  ctx.fillStyle = C.paper;
-  ctx.fillRect(340, 130, 920, 420);
-  text(ctx, 'DO RE GO', 65, 56, mobile ? 32 : 21, C.ink, 700, 'left');
-  text(
-    ctx,
-    `${exercise.title ?? PATTERNS[spec.pattern].name}  /  ${spec.bpm} BPM`,
-    WIDTH - 65,
-    56,
-    mobile ? 30 : 20,
-    C.muted,
-    500,
-    'right'
-  );
+  const inset = (WIDTH - keyboardWidth) / 2;
+  if (standalone)
+    text(ctx, exercise.title ?? PATTERNS[spec.pattern].name, inset, 64, 22, C.ink, 600, 'left');
   const labels = {
     ready: 'READY',
     countin: `${Math.ceil(spec.countIn / 4)}-BAR COUNT-IN`,
@@ -120,7 +121,26 @@ export function drawExercise(
     rest: 'REST',
     complete: 'COMPLETE',
   };
-  text(ctx, labels[scene.phase], 800, 155, mobile ? 34 : 19, C.muted, 600);
+  text(
+    ctx,
+    labels[scene.phase],
+    standalone ? 800 : inset,
+    standalone ? 128 : mobile ? 96 : 64,
+    mobile ? 40 : 20,
+    C.muted,
+    600,
+    standalone ? 'center' : 'left'
+  );
+  text(
+    ctx,
+    `${spec.bpm} BPM`,
+    WIDTH - inset,
+    mobile ? 96 : 64,
+    mobile ? 40 : 20,
+    C.muted,
+    500,
+    'right'
+  );
   if (scene.phase === 'countin') {
     const currentBeat = Math.floor(scene.beat),
       currentBar = Math.floor(currentBeat / 4);
@@ -197,70 +217,60 @@ export function drawExercise(
       }
     }
   } else if (scene.phase === 'complete') {
-    text(ctx, '✓', 800, mobile ? 400 : 325, mobile ? 260 : 150, '#779c40', 400);
+    centeredGlyphs(ctx, '✓', 800, mobile ? 528 : 350, mobile ? 260 : 150, '#779c40');
   }
-  // Practice targets are stable for the whole round, independent of sounding notes.
+  // The notes share an optical centerline. Their labels and the progress track
+  // are placed from measured ink bounds, independently of the note's spelling.
   const compact = scene.phase === 'countin';
-  const drawTarget = (round: PracticeRound | null, title: string, x: number, primary: boolean) => {
-    const y = mobile ? (compact ? 825 : 410) : compact ? 557 : 335;
+  const noteY = compact ? (mobile ? 820 : 560) : mobile ? 528 : 350;
+  const currentSize = compact ? (mobile ? 48 : 28) : mobile ? 250 : 148;
+  const nextSize = compact ? currentSize : mobile ? 190 : 110;
+  const noteLabel = (round: PracticeRound | null) =>
+    round ? (spec.solfege ? solfege(round.degree) : noteName(round.midi, spec.key)) : '—';
+  ctx.font = `500 ${currentSize}px Arial, sans-serif`;
+  const primaryMetrics = ctx.measureText(noteLabel(practice.current));
+  const primaryHeight =
+    primaryMetrics.actualBoundingBoxAscent + primaryMetrics.actualBoundingBoxDescent;
+  const labelY = compact ? (mobile ? 764 : 524) : noteY - primaryHeight / 2 - (mobile ? 56 : 34);
+  const currentX = compact ? 650 : 520;
+  const nextX = compact ? 950 : 1080;
+  if (scene.phase !== 'complete') {
     text(
       ctx,
-      title,
-      x,
-      mobile ? (compact ? 770 : 280) : compact ? 531 : 225,
-      mobile ? (compact ? 26 : 36) : compact ? 14 : 20,
+      'CURRENT',
+      currentX,
+      labelY,
+      compact ? (mobile ? 26 : 14) : mobile ? 40 : 20,
       C.muted,
       600
     );
-    const label = round
-      ? spec.solfege
-        ? solfege(round.degree)
-        : noteName(round.midi, spec.key)
-      : '—';
-    text(
+    text(ctx, 'NEXT', nextX, labelY, compact ? (mobile ? 26 : 14) : mobile ? 40 : 20, C.muted, 600);
+    const current = centeredGlyphs(
       ctx,
-      label,
-      x,
-      y,
-      mobile ? (compact ? 48 : primary ? 250 : 180) : compact ? 28 : primary ? 148 : 94,
-      primary ? C.ink : C.muted,
-      500
+      noteLabel(practice.current),
+      currentX,
+      noteY,
+      currentSize,
+      C.ink
     );
-    if (round && spec.solfege && !compact)
-      text(ctx, noteName(round.midi, spec.key), x, 440, 26, C.muted, 400);
-  };
-  if (scene.phase !== 'complete') {
-    drawTarget(practice.current, 'CURRENT', compact ? 680 : mobile ? 520 : 650, true);
-    drawTarget(practice.next, 'NEXT', compact ? 920 : mobile ? 1120 : 1080, false);
+    centeredGlyphs(ctx, noteLabel(practice.next), nextX, noteY, nextSize, C.muted);
     if (!compact) {
-      rounded(ctx, 495, mobile ? 600 : 488, 310, 4, 2, C.line);
-      rounded(ctx, 495, mobile ? 600 : 488, 310 * practice.progress, 4, 2, C.accent);
-      if (scene.phase === 'ready' && spec.countIn)
-        text(
-          ctx,
-          `${spec.countIn % 4 === 0 ? `${spec.countIn / 4}-bar` : `${spec.countIn}-beat`} count-in`,
-          800,
-          mobile ? 720 : 558,
-          mobile ? 32 : 19,
-          C.muted,
-          400
-        );
-      if (scene.phase === 'rest')
-        text(
-          ctx,
-          `Next round in ${scene.count}`,
-          800,
-          mobile ? 720 : 558,
-          mobile ? 34 : 22,
-          C.muted,
-          400
-        );
+      const progressY = current.top + current.height + (mobile ? 56 : 36);
+      rounded(ctx, current.left, progressY, current.width, 4, 2, C.line);
+      rounded(ctx, current.left, progressY, current.width * practice.progress, 4, 2, C.accent);
+      const hint =
+        scene.phase === 'rest'
+          ? `Next round in ${scene.count}`
+          : scene.phase === 'ready' && spec.countIn
+            ? `${spec.countIn % 4 === 0 ? `${spec.countIn / 4}-bar` : `${spec.countIn}-beat`} count-in`
+            : '';
+      if (hint) text(ctx, hint, 800, mobile ? 820 : 550, mobile ? 36 : 20, C.muted);
     }
   }
-  const { low, high, left, count } = keyboardView(exercise, seconds, mobile, reducedMotion);
+  const { low, high, left, count } = keyboard;
   const whites: number[] = [];
   for (let n = low; n <= high; n++) if (![1, 3, 6, 8, 10].includes(n % 12)) whites.push(n);
-  const width = mobile ? 1480 : Math.min(1300, count * 91),
+  const width = keyboardWidth,
     x0 = (WIDTH - width) / 2,
     keyW = width / count,
     y0 = mobile ? 930 : 637,
@@ -327,22 +337,13 @@ export function drawExercise(
   text(
     ctx,
     `${noteName(spec.low, spec.key)} — ${noteName(spec.high, spec.key)}`,
-    65,
-    mobile ? 1530 : 858,
-    mobile ? 30 : 17,
+    inset,
+    mobile ? 1510 : 850,
+    mobile ? 40 : 18,
     C.muted,
     500,
     'left'
   );
-  text(
-    ctx,
-    `${Math.min(notes.length, scene.note ? scene.note.id + 1 : scene.phase === 'complete' ? notes.length : notes.filter((n) => n.onsetBeat < scene.beat).length)} / ${notes.length} notes`,
-    WIDTH - (mobile ? 180 : 65),
-    mobile ? 1530 : 858,
-    mobile ? 30 : 17,
-    C.muted,
-    500,
-    'right'
-  );
   ctx.restore();
+  return { keyboardInsetPercent: (inset / WIDTH) * 100 };
 }

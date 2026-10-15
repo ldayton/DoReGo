@@ -4,7 +4,15 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
 import { Midi } from '../src/midi';
-import { DEFAULT_SPEC } from '../src/music';
+import { DEFAULT_SPEC as APP_DEFAULT_SPEC } from '../src/music';
+const DEFAULT_SPEC = {
+  ...APP_DEFAULT_SPEC,
+  pattern: 'arpeggio' as const,
+  key: 0,
+  low: 60,
+  high: 72,
+  bpm: 200,
+};
 
 const base = process.env.TEST_URL || 'http://127.0.0.1:4317';
 const work = new URL('../work/', import.meta.url);
@@ -28,6 +36,18 @@ try {
   await page.goto(base);
   await page.locator('#exercise-title').waitFor();
   assert.equal(await page.locator('#voice').count(), 0);
+  assert.equal(await page.locator('#exercise-title').textContent(), 'Rossini Scale');
+  assert.equal(await page.locator('#bpm').inputValue(), '180');
+  assert.equal(await page.locator('#low').inputValue(), '52');
+  assert.equal(await page.locator('#high').inputValue(), '76');
+  assert.equal(
+    await page.locator('#midi-download, #video-button, #export-dialog, .export-card').count(),
+    0
+  );
+  await page.locator('#pattern').selectOption('arpeggio');
+  await setNote('low', 60);
+  await setNote('high', 72);
+
   assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio & Scale (Ascending)');
   assert.deepEqual(await page.locator('#pattern option').allTextContents(), [
     'Arpeggio & Scale',
@@ -74,22 +94,25 @@ try {
   assert.equal(await page.locator('#low').inputValue(), '61');
   await page.locator('#pattern').selectOption('major');
   assert.equal(await page.locator('#pattern').inputValue(), 'major');
-  await page.locator('#save-preset').click();
-  await page.locator('#preset-name').fill('My test warm-up');
-  await page
-    .locator('#save-form')
-    .getByRole('button', { name: 'Save preset', exact: true })
-    .click();
+  assert.equal(
+    await page.locator('#save-preset, #saved-presets, #delete-preset, #save-dialog').count(),
+    0
+  );
   await page.reload();
   assert.equal(await page.locator('#pattern').inputValue(), 'major');
-  assert.ok((await page.locator('#saved-presets').innerText()).includes('My test warm-up'));
-  await page.locator('#saved-presets').selectOption({ label: 'My test warm-up' });
-  await page.locator('#delete-preset').click();
-  assert.ok(!(await page.locator('#saved-presets').innerText()).includes('My test warm-up'));
-  const midiEvent = page.waitForEvent('download');
-  await page.locator('#midi-download').click();
-  const midiDownload = await midiEvent;
-  await midiDownload.saveAs(new URL('exercise.mid', work).pathname);
+  const currentSpec = await page.evaluate(() => localStorage.getItem('dorego.current')!);
+  const specFile = new URL('cli-exercise.json', work).pathname;
+  await writeFile(specFile, currentSpec);
+  await promisify(execFile)(process.execPath, [
+    '--import',
+    'tsx',
+    'scripts/export.ts',
+    'midi',
+    '--spec',
+    specFile,
+    '--output',
+    new URL('exercise.mid', work).pathname,
+  ]);
   const midi = new Midi(await readFile(new URL('exercise.mid', work)));
   assert.ok(midi.tracks[0].notes.length > 0);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -207,14 +230,25 @@ try {
     short
   );
   await page.reload();
-  await page.locator('#video-button').click();
-  await page.locator('#start-export').click();
-  await page.locator('#video-download').waitFor({ state: 'visible', timeout: 180000 });
-  const downloadEvent = page.waitForEvent('download');
-  await page.locator('#video-download').click();
-  const video = await downloadEvent;
+  const shortSpec = new URL('cli-short.json', work).pathname;
+  await writeFile(shortSpec, JSON.stringify(short));
   const path = new URL('exercise.mp4', work).pathname;
-  await video.saveAs(path);
+  await promisify(execFile)(
+    process.execPath,
+    [
+      '--import',
+      'tsx',
+      'scripts/export.ts',
+      'video',
+      '--spec',
+      shortSpec,
+      '--output',
+      path,
+      '--url',
+      base,
+    ],
+    { timeout: 180000 }
+  );
   const { stdout } = await promisify(execFile)('ffprobe', [
     '-v',
     'error',
@@ -377,7 +411,7 @@ try {
   assert.deepEqual(hdProbe.streams[0], { width: 1920, height: 1080 });
   assert.deepEqual(errors, []);
   console.log(
-    `PASS: desktop/mobile UI, playback, pause/resume, presets, transposition, validation, MIDI, frame-order independence, MP4 with audible audio (RMS ${rms.toFixed(4)}), guide pitch timing, exported frame timing (SSIM ${score.toFixed(4)}), cancellation, and origin protection.`
+    `PASS: desktop/mobile UI, playback, pause/resume, saved exercise, transposition, validation, MIDI, frame-order independence, MP4 with audible audio (RMS ${rms.toFixed(4)}), guide pitch timing, exported frame timing (SSIM ${score.toFixed(4)}), cancellation, and origin protection.`
   );
 } finally {
   await browser.close();

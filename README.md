@@ -24,30 +24,42 @@ npm run build
 npm start
 ```
 
-No account, API key, microphone access, or hosted service is required. CC BY 4.0 bitKlavier Grand Steinway D recordings are bundled locally in public/samples/bitklavier. Dependencies and Chromium need to be downloaded once during setup. Presets and your latest exercise live in this browser's local storage; exported video files temporarily live on this computer.
+No account, API key, microphone access, or hosted service is required. CC BY 4.0 bitKlavier Grand Steinway D recordings are bundled locally in public/samples/bitklavier. Dependencies and Chromium need to be downloaded once during setup. Your latest exercise lives in this browser's local storage; exported video files temporarily live on this computer.
 
 ## Practice
 
-- Five exercises: **Arpeggio & Scale** (default), **Octave Arpeggio**, **Rossini Scale**, **Five-Note Scale**, and **Major Scale**. All except Rossini offer **Ascending** and **Descending** directions; Rossini has a fixed rise-and-return phrase.
+- Five exercises: **Arpeggio & Scale**, **Octave Arpeggio**, **Rossini Scale** (default: E3–E5, 180 BPM), **Five-Note Scale**, and **Major Scale**. All except Rossini offer **Ascending** and **Descending** directions; Rossini has a fixed rise-and-return phrase.
 - Choose your lowest/highest vocal notes and direction. Major Scale instead uses a single Key selector for the starting note, including its octave; the other exercises move by semitone through your range.
 - Transpose the key and range together with the minus/plus buttons.
 - Adjust tempo (30–240 BPM), rounds, inter-round rests, count-in, and volume. Sound uses the sampled bitKlavier Steinway Grand with fixed natural articulation. All beats are quarter-note beats. The default count-in is two bars of 4/4 (eight beats), displayed as two labeled four-beat groups with the active beat highlighted and each downbeat accented.
-- Piano samples warm up automatically before playback. A delayed “Loading...” indicator appears only if preparation takes longer than 300 ms; Play becomes available as soon as the selected exercise is ready; failed loads offer a retry.
+- Piano samples warm up automatically before playback. A “Loading...” indicator appears immediately while preparing; Play becomes available as soon as the selected exercise is ready; failed loads offer a retry.
+- Exercise, range, tempo, direction, and other preferences are saved automatically in browser local storage and restored on return. New users start with Rossini E3–E5 at 180 BPM.
 - Optional metronome.
 - Play/pause, scrub, restart, and fullscreen. Space toggles playback, R restarts, F toggles fullscreen when a form control is not focused. Editing settings resets playback so the display and sound use the same exercise.
-- Save and load up to 50 named presets.
 
-On phones, the practice canvas uses a taller layout with larger keys. The keyboard focuses on the current round and includes its full starting chords, even below the selected singing range. Desktop and exported video retain the wide layout.
+On phones, the practice canvas uses a taller layout with larger keys. The keyboard focuses on the vocal phrase, keeps key sizes fixed for the whole exercise, and slides between rounds. Intro chords remain audible but are not visualized on mobile. Desktop and exported video retain the wide layout.
 
 Note names stay visible for the full rhythmic slot. The highlighted key follows the sounding duration, so detached notes have a short unlit gap. Repeated notes get a fresh progress bar. No pitch detection or singing assessment is implemented.
 
 ## Exports
 
-**MIDI** downloads immediately in the browser. It contains guide notes, tempo, and percussion-channel count-in/metronome clicks when enabled. A timed all-notes-off controller preserves the final slot. Guide volume/timbre and visual preferences are preview/video settings; MIDI uses a standard piano program and fixed guide-note velocity for downstream editing.
+Exports are CLI-only; the practice UI has no export controls.
+
+```sh
+npm run export -- midi --output exercise.mid
+# With the local server running:
+npm run export -- video --output exercise.mp4
+# Optional partial ExerciseSpec JSON and video quality:
+npm run export -- video --spec exercise.json --height 1080 --output exercise.mp4
+```
+
+Without a spec file, exports use Rossini E3–E5 at 180 BPM. Use `--url` for a different local server URL. Ctrl+C cancels a video export.
+
+**MIDI** exports directly to the requested file without a running server. It contains guide notes, tempo, and percussion-channel count-in/metronome clicks when enabled. A timed all-notes-off controller preserves the final slot. Guide volume/timbre and visual preferences are preview/video settings; MIDI uses a standard piano program and fixed guide-note velocity for downstream editing.
 
 **Video** is rendered locally at 720p or 1080p, 30 fps, as H.264/AAC MP4. It includes the same count-in, note sequence, rests, guide sound, and visual settings as practice. Audio is rendered offline and gets an 0.8-second release tail. Each image is computed directly from `frameIndex / fps`, so exporting does not depend on recording real-time playback or keeping a tab foregrounded.
 
-One video renders at a time. Progress and cancellation are available in the export dialog. You can close the dialog and keep practicing while rendering; reopening it shows progress. A successful export has an explicit Download MP4 link. Completed files expire after one hour while the server runs and are removed on a normal shutdown. Temporary files from a forced termination may remain in the operating system's temporary directory. Keep exercises under ten minutes; long 1080p exports can take substantial time. Export jobs do not resume after restarting the server.
+One video renders at a time. The CLI reports progress and saves the completed MP4 to the requested output path. The server removes temporary exports after one hour.
 
 Browser visuals update on animation frames. Exported visuals are quantized to video frames; sound is scheduled on the audio timeline. Bluetooth or other output-device latency can affect perceived live synchronization.
 
@@ -73,7 +85,7 @@ npm run build
 npm run test:e2e
 ```
 
-The model tests cover all keys and patterns, boundary states, range constraints, invalid inputs, MIDI timing, and clicks. End-to-end tests cover desktop/mobile layout, playback and pause/resume, presets, transposition, MIDI download, rendering the same frame after out-of-order seeks, a real MP4 export with audible audio, expected guide pitches at their scheduled times, an encoded video frame compared with the shared renderer, export cancellation, concurrent-export rejection, and cross-origin protection. They require Chromium, FFmpeg, and ffprobe, and save screenshots and output files under ignored `work/`. Use `TEST_URL` to test another local port.
+The model tests cover all keys and patterns, boundary states, range constraints, invalid inputs, MIDI timing, and clicks. End-to-end tests cover desktop/mobile layout, playback and pause/resume, saved exercise, transposition, MIDI download, rendering the same frame after out-of-order seeks, a real MP4 export with audible audio, expected guide pitches at their scheduled times, an encoded video frame compared with the shared renderer, export cancellation, concurrent-export rejection, and cross-origin protection. They require Chromium, FFmpeg, and ffprobe, and save screenshots and output files under ignored `work/`. Use `TEST_URL` to test another local port.
 
 All runtime dependency versions are pinned by `package-lock.json`. The app does not copy source from the reference visualizer projects. Its dependencies retain their respective licenses.
 
@@ -105,4 +117,4 @@ Rebuild the assets with `python3 scripts/setup-bitklavier.py` (requires FFmpeg; 
 
 The public site is https://ldayton.github.io/DoReGo/ . `.github/workflows/deploy.yml` tests, builds, and deploys each push to `main`; it can also be run manually from Actions. Repository Settings → Pages must use GitHub Actions as the source. Failed checks prevent deployment.
 
-`npm run build:pages` produces `dist-pages/` with the `/DoReGo/` base path. `npm run test:pages` starts a static preview and verifies piano playback, sample paths, MIDI download, credits, and static hosting controls. Install the Playwright Chromium browser first with `npm run setup:browser`. The Pages site supports practice and MIDI; video export remains available in the local app because it requires the local FFmpeg rendering server. `npm run build` and `npm start` continue to run the full local app.
+`npm run build:pages` produces `dist-pages/` with the `/DoReGo/` base path. `npm run test:pages` starts a static preview and verifies piano playback, sample paths, defaults, credits, and the absence of export controls. Install the Playwright Chromium browser first with `npm run setup:browser`. The Pages site supports practice. MIDI and video exports are CLI-only; video requires the local FFmpeg rendering server. `npm run build` and `npm start` continue to run the full local app.

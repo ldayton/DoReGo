@@ -9,10 +9,10 @@ const renderer = {
     exercise = generateExercise(spec);
     canvas.width = width;
     canvas.height = height;
-    drawExercise(canvas, exercise, 0);
+    drawExercise(canvas, exercise, 0, false, false, true);
   },
   frame(time: number) {
-    drawExercise(canvas, exercise, time);
+    drawExercise(canvas, exercise, time, false, false, true);
   },
   async audio() {
     const bytes = await renderAudio(exercise);
