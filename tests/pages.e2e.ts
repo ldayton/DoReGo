@@ -46,8 +46,27 @@ try {
       samples.push(response.url());
     }
   });
+  let releaseSamples!: () => void;
+  const sampleGate = new Promise<void>((resolve) => {
+    releaseSamples = resolve;
+  });
+  await page.route('**/samples/bitklavier/*.flac', async (route) => {
+    await sampleGate;
+    await route.continue();
+  });
   await page.goto(base);
   await page.locator('#exercise-title').waitFor();
+  await page.getByRole('button', { name: 'Piano warming up…' }).waitFor();
+  assert.ok(await page.locator('#play').isDisabled());
+  assert.equal(await page.locator('#play').getAttribute('aria-busy'), 'true');
+  assert.equal(await page.locator('.piano-warmup i').count(), 3);
+  releaseSamples();
+  await page.waitForFunction(
+    () => !(document.querySelector('#play') as HTMLButtonElement).disabled
+  );
+  assert.equal(await page.locator('#play').innerText(), 'Play');
+  assert.ok(samples.length > 0, 'Piano samples should load before the first click');
+  const preparedSamples = samples.length;
   assert.equal(await page.locator('#gate').count(), 0);
   assert.equal(await page.locator('#noteBeats').count(), 0);
   assert.equal(await page.locator('#solfege').count(), 0);
@@ -61,10 +80,16 @@ try {
   assert.equal(await page.locator('.brand').getAttribute('href'), '/DoReGo/');
   assert.ok(await page.locator('#video-button').isHidden());
   assert.equal(await page.locator('#bpm').inputValue(), '200');
+  const playStarted = Date.now();
   await page.locator('#play').click();
   await page.waitForFunction(
     () => Number((document.querySelector('#position') as HTMLInputElement).value) > 0.15
   );
+  assert.ok(
+    Date.now() - playStarted < 1500,
+    'Prepared playback should start without sample loading'
+  );
+  assert.equal(samples.length, preparedSamples, 'Play must use the preloaded samples');
   await page.locator('#play').click();
   assert.ok(samples.length > 0);
   assert.ok(samples.every((url) => url.includes('/DoReGo/samples/bitklavier/')));

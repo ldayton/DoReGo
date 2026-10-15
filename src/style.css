@@ -1323,3 +1323,37 @@ main {
   outline-offset: -3px;
   border-radius: 3px;
 }
+
+.piano-warmup {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+}
+.piano-warmup i {
+  display: block;
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: currentColor;
+  animation: piano-warming 900ms ease-in-out infinite alternate;
+}
+.piano-warmup i:nth-child(2) {
+  animation-delay: -300ms;
+}
+.piano-warmup i:nth-child(3) {
+  animation-delay: -600ms;
+}
+@keyframes piano-warming {
+  from {
+    transform: scaleY(0.35);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .piano-warmup i {
+    animation: none;
+  }
+}

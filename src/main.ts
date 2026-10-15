@@ -345,6 +345,26 @@ function persist() {
     /* Practice works without storage. */
   }
 }
+let pianoWarming = true;
+let pianoFailed = false;
+let warmupGeneration = 0;
+async function warmPiano() {
+  const generation = ++warmupGeneration;
+  pianoWarming = true;
+  pianoFailed = false;
+  update();
+  try {
+    await player.prepare(exercise);
+    if (generation !== warmupGeneration) return;
+    pianoWarming = false;
+  } catch (error) {
+    if (generation !== warmupGeneration) return;
+    pianoWarming = false;
+    pianoFailed = true;
+    toast(error instanceof Error ? error.message : 'Could not warm up the piano. Try again.');
+  }
+  update();
+}
 function setError(message: string | null) {
   const el = $('#form-error');
   el.textContent = message;
@@ -367,6 +387,7 @@ function refresh() {
     setError(null);
     persist();
     populate();
+    void warmPiano();
     update();
   } catch (error) {
     setError(error instanceof Error ? error.message : 'Check the exercise settings.');
@@ -422,17 +443,23 @@ function update() {
     exercise.title ??
     `${PATTERNS[spec.pattern].name} (${spec.direction === 'down' ? 'Descending' : 'Ascending'})`;
   const button = $('#play');
-  const label =
-    mode === 'playing'
-      ? 'Pause'
-      : mode === 'paused'
-        ? 'Resume'
-        : mode === 'complete'
-          ? 'Replay'
-          : 'Play';
-  if (button.dataset.mode !== mode) {
-    button.innerHTML = `<i data-lucide="${mode === 'playing' ? 'pause' : 'play'}"></i><span>${label}</span>`;
-    button.dataset.mode = mode;
+  const label = pianoWarming
+    ? 'Piano warming up…'
+    : pianoFailed
+      ? 'Retry piano'
+      : mode === 'playing'
+        ? 'Pause'
+        : mode === 'paused'
+          ? 'Resume'
+          : mode === 'complete'
+            ? 'Replay'
+            : 'Play';
+  const buttonMode = pianoWarming ? 'warming' : pianoFailed ? 'failed' : mode;
+  $<HTMLButtonElement>('#play').disabled = pianoWarming || !$('#form-error').hidden;
+  button.setAttribute('aria-busy', String(pianoWarming));
+  if (button.dataset.mode !== buttonMode) {
+    button.innerHTML = `${pianoWarming ? '<span class="piano-warmup" aria-hidden="true"><i></i><i></i><i></i></span>' : `<i data-lucide="${mode === 'playing' ? 'pause' : 'play'}"></i>`}<span>${label}</span>`;
+    button.dataset.mode = buttonMode;
     iconify();
   }
   const slider = $<HTMLInputElement>('#position');
@@ -460,6 +487,10 @@ function tick() {
 }
 async function togglePlay() {
   if ($<HTMLButtonElement>('#play').disabled) return;
+  if (pianoFailed) {
+    void warmPiano();
+    return;
+  }
   if (mode === 'playing') {
     position = player.position;
     stop(false);
@@ -706,4 +737,5 @@ populate();
 showPresets();
 iconify();
 resizeStage();
+void warmPiano();
 window.addEventListener('pagehide', () => player.stop());

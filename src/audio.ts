@@ -54,6 +54,10 @@ export class Player {
   private offset = 0;
   private pending = 0;
   private scheduler: ReturnType<typeof setInterval> | undefined;
+  async prepare(exercise: Exercise) {
+    initPlayback();
+    await preloadSteinway(exercise);
+  }
   async play(exercise: Exercise, offset = 0) {
     this.stop();
     const token = ++this.pending;

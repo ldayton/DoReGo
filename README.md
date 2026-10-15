@@ -32,6 +32,7 @@ No account, API key, microphone access, or hosted service is required. CC BY 4.0
 - Choose your lowest/highest vocal notes and direction. Major Scale instead uses a single Key selector for the starting note, including its octave; the other exercises move by semitone through your range.
 - Transpose the key and range together with the minus/plus buttons.
 - Adjust tempo (30–240 BPM), rounds, inter-round rests, count-in, and volume. Sound uses the sampled bitKlavier Steinway Grand with fixed natural articulation. All beats are quarter-note beats. The default count-in is two bars of 4/4 (eight beats), displayed as two labeled four-beat groups with the active beat highlighted and each downbeat accented.
+- Piano samples warm up automatically before playback. An animated “Piano warming up…” button becomes Play when the selected exercise is ready; failed loads offer a retry.
 - Optional metronome.
 - Play/pause, scrub, restart, and fullscreen. Space toggles playback, R restarts, F toggles fullscreen when a form control is not focused. Editing settings resets playback so the display and sound use the same exercise.
 - Save and load up to 50 named presets.
