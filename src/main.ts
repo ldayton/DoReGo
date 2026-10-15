@@ -146,12 +146,16 @@ $('#app').innerHTML = `
       </aside>
       <section class="workspace" aria-label="Practice studio">
         <div class="exercise-heading"><div><h2 id="exercise-title"></h2></div></div>
+        <div class="practice-panel">
         <div class="practice-card" id="practice-card"><canvas id="stage" width="1600" height="900" aria-label="Exercise note and piano keyboard" role="img"></canvas><button class="fullscreen-button" id="fullscreen" aria-label="Enter fullscreen practice" title="Fullscreen practice"><i data-lucide="maximize-2"></i></button><span class="sr-only" id="note-announcement" aria-live="polite"></span></div>
+        <div class="exercise-controls" role="group" aria-label="Exercise playback controls">
         <div class="transport"><div class="transport-buttons"><button id="restart" class="icon-button" title="Restart exercise" aria-label="Restart exercise"><i data-lucide="rotate-ccw"></i></button><button id="play" class="play-button"><i data-lucide="play"></i><span>Play</span></button></div><div class="scrubber"><label for="position" class="sr-only">Playback position</label><input id="position" type="range" min="0" max="100" step="0.01" value="0"/><div class="time-labels"><span id="elapsed">0:00</span><span id="duration">0:00</span></div></div><span class="shortcut"><kbd>space</kbd> to play</span></div>
-        <div class="tempo-control" id="tempo-control" role="group" aria-label="Tempo"><div class="tempo-label"><label for="bpm">Tempo</label><span><button type="button" id="tempo-down" class="tempo-step" aria-label="Decrease tempo by 5 BPM"><i data-lucide="minus"></i></button><input name="bpm" form="exercise-form" id="bpm" type="number" min="60" max="240" step="5" aria-label="Tempo in beats per minute"/><span>BPM</span><button type="button" id="tempo-up" class="tempo-step" aria-label="Increase tempo by 5 BPM"><i data-lucide="plus"></i></button></span></div>
+        <div class="tempo-control" id="tempo-control" role="group" aria-label="Tempo"><div class="tempo-label"><label for="bpm">Tempo</label><span><button type="button" id="tempo-down" class="tempo-step" aria-label="Decrease tempo by 5 BPM"><i data-lucide="minus"></i></button><span class="tempo-value"><input name="bpm" form="exercise-form" id="bpm" type="number" min="60" max="240" step="5" aria-label="Tempo in beats per minute"/><span>BPM</span></span><button type="button" id="tempo-up" class="tempo-step" aria-label="Increase tempo by 5 BPM"><i data-lucide="plus"></i></button></span></div>
           <input id="tempo-slider" type="range" min="60" max="240" step="5" aria-label="Tempo slider" /></div>
         <div class="volume-control" id="volume-control"><label for="volume">Volume <i data-lucide="volume-2" aria-hidden="true"></i></label><input name="volume" form="exercise-form" id="volume" type="range" min="-36" max="0" step="1" aria-label="Volume" /></div>
         <div class="below-player"><p id="exercise-summary"></p></div>
+        </div>
+        </div>
       </section>
     </div>
 
@@ -405,6 +409,7 @@ function changeVolume() {
   spec = { ...spec, volume };
   exercise = { ...exercise, spec };
   persist();
+  update();
 }
 $<HTMLInputElement>('#volume').addEventListener('input', changeVolume);
 $<HTMLInputElement>('#volume').addEventListener('change', changeVolume);
@@ -480,6 +485,13 @@ let announced = '';
 function update() {
   const duration = secondsAt(exercise.totalBeats, spec.bpm);
   const time = mode === 'ready' ? -1 : position;
+  $<HTMLInputElement>('#bpm').style.width = `${String(spec.bpm).length}ch`;
+  for (const id of ['tempo-slider', 'volume']) {
+    const control = $<HTMLInputElement>(`#${id}`);
+    const value = id === 'volume' ? spec.volume : spec.bpm;
+    const fraction = (value - Number(control.min)) / (Number(control.max) - Number(control.min));
+    control.style.setProperty('--fill', `${Math.max(0, Math.min(1, fraction)) * 100}%`);
+  }
   const layout = drawExercise(canvas, exercise, time, mobileStage, reducedMotionQuery.matches);
   const inset = `${layout.keyboardInsetPercent}%`;
   if ($('#practice-card').style.getPropertyValue('--keyboard-inset') !== inset)
