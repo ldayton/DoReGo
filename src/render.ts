@@ -1,5 +1,6 @@
 import {
   noteName,
+  notePitchAt,
   PATTERNS,
   solfege,
   stateAt,
@@ -100,7 +101,7 @@ export function drawExercise(
   const sounding = new Set(
     keyboardNotes
       .filter((n) => n.onsetBeat <= scene.beat && scene.beat < n.onsetBeat + n.durationBeats)
-      .map((n) => n.midi)
+      .map((n) => Math.round(notePitchAt(n, scene.beat)))
   );
   if (scene.phase === 'ready') {
     sounding.clear();
@@ -320,6 +321,32 @@ export function drawExercise(
     );
   }
   ctx.restore();
+  const glide = scene.phase === 'note' && scene.note?.glideSpan ? scene.note : null;
+  if (glide) {
+    const keyCenter = (midi: number) =>
+      whiteKeyPosition(midi) + ([1, 3, 6, 8, 10].includes(midi % 12) ? 1 : 0.5);
+    const xAt = (midi: number) => {
+      const lower = Math.floor(midi),
+        fraction = midi - lower;
+      return (
+        x0 + (keyCenter(lower) * (1 - fraction) + keyCenter(lower + 1) * fraction - left) * keyW
+      );
+    };
+    const y = y0 - (mobile ? 36 : 24);
+    rounded(
+      ctx,
+      xAt(glide.midi),
+      y - 2,
+      xAt(glide.midi + glide.glideSpan!) - xAt(glide.midi),
+      4,
+      2,
+      C.line
+    );
+    ctx.beginPath();
+    ctx.arc(xAt(notePitchAt(glide, scene.beat)), y, mobile ? 14 : 8, 0, Math.PI * 2);
+    ctx.fillStyle = C.accent;
+    ctx.fill();
+  }
   if (spec.transition !== null && spec.transition >= low && spec.transition <= high) {
     const black = [1, 3, 6, 8, 10].includes(spec.transition % 12);
     const index = whiteKeyPosition(spec.transition) - left;

@@ -137,11 +137,17 @@ try {
   assert.ok(samples.length > 0);
   assert.ok(samples.every((url) => url.includes('/DoReGo/samples/bitklavier/')));
   await page.locator('#how-button').click();
-  const credits = page.locator('#how-dialog a');
+  const credits = page.locator('#how-dialog a[href*="bitklavier"]');
   const creditsPath = await credits.getAttribute('href');
   const notice = await fetch(new URL(creditsPath!, base));
   assert.ok(notice.ok);
   assert.match(await notice.text(), /Creative Commons Attribution 4.0/);
+  const celloNoticePath = await page
+    .locator('#how-dialog a[href*="vsco-cello"]')
+    .getAttribute('href');
+  const celloNotice = await fetch(new URL(celloNoticePath!, base));
+  assert.ok(celloNotice.ok);
+  assert.match(await celloNotice.text(), /CC0/);
   await page.locator('#how-dialog .close-dialog').click();
   await page.locator('#tempo-up').click();
   assert.equal(await page.locator('#bpm').inputValue(), '155');
@@ -220,7 +226,17 @@ try {
     'Rossini Scale',
     'Five-Note Scale',
     'Major Scale',
+    'Fifth Glide',
+    'Octave Glide',
   ]);
+  for (const pattern of ['fifthGlide', 'octaveGlide']) {
+    await page.locator('#pattern').selectOption(pattern);
+    assert.ok(await page.locator('#direction').isHidden());
+    assert.equal(await page.locator('#starting-chords-field').getAttribute('hidden'), null);
+    await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>('#play')?.disabled);
+    assert.ok(await page.locator('#form-error').isHidden());
+  }
+  assert.ok(samples.some((url) => url.includes('/DoReGo/samples/vsco-cello/')));
   await page.locator('#pattern').selectOption('major');
   assert.ok(await page.locator('#note-range').isHidden());
   assert.ok(await page.locator('#range-heading').isHidden());

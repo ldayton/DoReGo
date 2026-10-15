@@ -28,11 +28,11 @@ No account, API key, microphone access, or hosted service is required. CC BY 4.0
 
 ## Practice
 
-- Five exercises: **Arpeggio & Scale** (default: E3–E5, 150 BPM), **Octave Arpeggio**, **Rossini Scale**, **Five-Note Scale**, and **Major Scale**. All except Rossini offer **Ascending** and **Descending** directions; Rossini has a fixed rise-and-return phrase.
+- Seven exercises: **Arpeggio & Scale** (default: E3–E5, 150 BPM), **Octave Arpeggio**, **Rossini Scale**, **Five-Note Scale**, **Major Scale**, **Fifth Glide**, and **Octave Glide**. Rossini and the glides have fixed up-and-back phrases; the other exercises offer **Ascending** and **Descending** directions.
 - Choose your lowest/highest vocal notes and direction. Major Scale instead uses a single Key selector for the starting note, including its octave; the other exercises move by semitone through your range.
 - Desktop note fields accept typed names such as E3 or F#4 and open a note grid organized by octave. Mobile uses snapping swipe wheels. Arrow keys move by semitone and Page Up/Down by octave.
 - Transpose the key and range together with the minus/plus buttons.
-- Adjust tempo (60–240 BPM), rounds, inter-round rests, count-in, and volume. Sound uses the sampled bitKlavier Steinway Grand with fixed natural articulation. All beats are quarter-note beats. The default count-in is two bars of 4/4 (eight beats), displayed as two labeled four-beat groups with the active beat highlighted and each downbeat accented.
+- Adjust tempo (60–240 BPM), rounds, inter-round rests, count-in, and volume. Pitched phrases use the sampled bitKlavier Steinway Grand with fixed natural articulation. Glides use sustained VSCO cello recordings, with the usual piano chord introduction. All beats are quarter-note beats. The default count-in is two bars of 4/4 (eight beats), displayed as two labeled four-beat groups with the active beat highlighted and each downbeat accented.
 - Piano samples warm up automatically before playback. A “Loading...” indicator appears immediately while preparing; Play becomes available as soon as the selected exercise is ready; failed loads offer a retry.
 - Exercise, range, tempo, direction, and other preferences are saved automatically in browser local storage and restored on return. New users start with Arpeggio & Scale E3–E5 at 150 BPM.
 - Tempo −/+ buttons step by 5 BPM. Repeats count additional passes (None means one pass); repeats and rest use stacked arrows on desktop and None–4 dropdowns on mobile.
@@ -105,11 +105,21 @@ All exercises use the tempo, fixed exercise timing, natural articulation, count-
 
 ## bitKlavier Grand
 
-The only supported sound is bitKlavier Grand Piano Bar (Steinway D). Older saved sound choices are automatically migrated to bitKlavier. Main sustained recordings retain all 16 velocity layers and stereo 44.1 kHz / 16-bit resolution, losslessly converted to FLAC. Only the samples needed by an exercise load into memory. The browser adaptation uses nearest sampled pitches, equal velocity zones, and an envelope release; it does not implement the original instrument's pedal, sympathetic resonance, or release samples. Playback and video export use the same adaptation.
+Piano exercises and starting cues use bitKlavier Grand Piano Bar (Steinway D). Older saved sound choices are automatically migrated to bitKlavier. Main sustained recordings retain all 16 velocity layers and stereo 44.1 kHz / 16-bit resolution, losslessly converted to FLAC. Only the samples needed by an exercise load into memory. The browser adaptation uses nearest sampled pitches, equal velocity zones, and an envelope release; it does not implement the original instrument's pedal, sympathetic resonance, or release samples. Playback and video export use the same adaptation.
 
 Source and full credits: https://bitklavier.com/the-bitklavier-grand/ . Recorded by Andres Villalta, played by Matt Wang, produced by Dan Trueman. Licensed CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ . Attribution and transformation details are bundled in `public/samples/bitklavier/NOTICE.txt` and linked from Help.
 
 Rebuild the assets with `python3 scripts/setup-bitklavier.py` (requires FFmpeg; downloads the approximately 1 GB source archive into ignored `work/`).
+
+### Cello glides
+
+Fifth Glide and Octave Glide use CC0 VSCO 2 Community Edition cello-section recordings. Each round begins with the usual six-beat piano chord introduction (when starting chords are enabled), then a fourteen-beat continuous slide: hold two beats, rise four, hold two, descend four, hold two. Rounds move up by semitone while keeping the complete glide inside the chosen vocal range. Direction is fixed for glides; the starting-chord option works as it does for the other vocal exercises.
+
+One sustained recording, chosen nearest the glide's pitch midpoint, plays throughout the phrase with smooth audio-clock pitch automation. Samples load only when needed; crossfaded sustain loops support slower tempos, and pause/seek resumes at the correct pitch and sample position. The keyboard follows the sounding pitch with a moving marker; Current/Next still show round targets. Video uses the same cello playback; MIDI exports a separate cello track with pitch bends and a declared octave bend range.
+
+Source: https://versilian-studios.com/vsco-community/ and https://github.com/sgossner/VSCO-2-CE . The thirteen quiet sustained-vibrato recordings are losslessly converted to FLAC using the publisher's SFZ pitch mapping. License and adaptation details are in `public/samples/vsco-cello/NOTICE.txt` and linked from Help. These are digitally bent sustained ensemble recordings, rather than recorded portamento transitions.
+
+`npm run test:glides` checks desktop/mobile controls, persistence, pause/resume inside a glide, and browser-rendered audio at 60 BPM, including held pitch accuracy, sustained output through looping, headroom, and silent release.
 
 ### Audio reliability checks
 

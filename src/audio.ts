@@ -1,3 +1,4 @@
+import { CelloGlides, preloadCello } from './cello';
 import * as Tone from 'tone';
 import { secondsAt, type Exercise } from './music';
 import { preloadSteinway, SteinwayGrand } from './steinway';
@@ -17,6 +18,7 @@ function makeGraph(volume: number) {
   const limiter = new Tone.Limiter(-1).toDestination();
   const output = new Tone.Volume(volume <= -60 ? -Infinity : volume).connect(limiter);
   const synth = new SteinwayGrand(output);
+  const cello = new CelloGlides(output);
   const click = new Tone.Synth({
     oscillator: { type: 'sine' },
     envelope: { attack: 0.001, decay: 0.025, sustain: 0, release: 0.02 },
@@ -24,10 +26,12 @@ function makeGraph(volume: number) {
   }).connect(output);
   return {
     synth,
+    cello,
     click,
     output,
     dispose() {
       synth.dispose();
+      cello.dispose();
       click.dispose();
       output.dispose();
       limiter.dispose();
@@ -38,6 +42,15 @@ function playEvent(event: AudioEvent, graph: ReturnType<typeof makeGraph>, time:
   if (event.kind === 'click') {
     if (late < 0.04)
       graph.click.triggerAttackRelease(event.frequency, event.duration, time, event.velocity);
+  } else if (event.kind === 'glide' && event.glide) {
+    graph.cello.play(
+      event.glide.midi,
+      event.glide.span,
+      event.glide.duration,
+      event.elapsed + late,
+      time,
+      event.velocity
+    );
   } else if (event.duration > late) {
     graph.synth.triggerAttackRelease(
       event.frequency,
@@ -56,7 +69,7 @@ export class Player {
   private scheduler: ReturnType<typeof setInterval> | undefined;
   async prepare(exercise: Exercise) {
     initPlayback();
-    await preloadSteinway(exercise);
+    await Promise.all([preloadSteinway(exercise), preloadCello(exercise)]);
   }
   async play(exercise: Exercise, offset = 0) {
     this.stop();
@@ -65,7 +78,7 @@ export class Player {
     initPlayback();
     await Tone.start();
     if (token !== this.pending) return false;
-    await preloadSteinway(exercise);
+    await Promise.all([preloadSteinway(exercise), preloadCello(exercise)]);
     if (token !== this.pending) return false;
     this.graph = makeGraph(exercise.spec.volume);
     this.offset = offset;
@@ -117,7 +130,7 @@ export class Player {
   }
 }
 export async function renderAudio(exercise: Exercise): Promise<Uint8Array> {
-  await preloadSteinway(exercise);
+  await Promise.all([preloadSteinway(exercise), preloadCello(exercise)]);
   const duration = secondsAt(exercise.totalBeats, exercise.spec.bpm) + RELEASE_TAIL;
   let cleanup = () => {};
   const result = await Tone.Offline(

@@ -24,13 +24,30 @@ export const PATTERNS = {
     intervals: [0, 2, 4, 5, 7, 9, 11],
     description: 'A major scale through your selected range.',
   },
+  fifthGlide: {
+    name: 'Fifth Glide',
+    intervals: [0, 7, 0],
+    description: 'A continuous cello glide up a fifth and back, moving one semitone per round.',
+  },
+  octaveGlide: {
+    name: 'Octave Glide',
+    intervals: [0, 12, 0],
+    description: 'A continuous cello glide up an octave and back, moving one semitone per round.',
+  },
 } as const;
 export type Pattern = keyof typeof PATTERNS;
+export function isGlidePattern(pattern: Pattern) {
+  return pattern === 'fifthGlide' || pattern === 'octaveGlide';
+}
 export function isVocalPattern(pattern: Pattern) {
   return pattern !== 'major';
 }
 export function vocalSpan(pattern: Pattern) {
-  return pattern === 'rossini' ? 19 : pattern === 'octaveArpeggio' ? 12 : 7;
+  return pattern === 'rossini'
+    ? 19
+    : pattern === 'octaveArpeggio' || pattern === 'octaveGlide'
+      ? 12
+      : 7;
 }
 export type Direction = 'up' | 'down';
 export type Voice = 'bitklavier';
@@ -62,6 +79,7 @@ export interface NoteEvent {
   repetition: number;
   degree: number;
   velocity?: number;
+  glideSpan?: number;
 }
 export interface Exercise {
   spec: ExerciseSpec;
@@ -164,7 +182,10 @@ export function validateSpec(input: unknown): ExerciseSpec {
     if (typeof s[key] !== 'boolean') throw new Error(`Invalid ${key}.`);
   const result: ExerciseSpec = {
     pattern: s.pattern as Pattern,
-    direction: s.pattern === 'rossini' ? 'up' : (s.direction as Direction),
+    direction:
+      s.pattern === 'rossini' || isGlidePattern(s.pattern as Pattern)
+        ? 'up'
+        : (s.direction as Direction),
     voice: s.voice as Voice,
     key: num('key', 0, 11, true),
     low: num('low', 24, 96, true),
@@ -188,6 +209,7 @@ export function validateSpec(input: unknown): ExerciseSpec {
 }
 export function generateExercise(input: unknown): Exercise {
   const spec = validateSpec(input);
+  if (isGlidePattern(spec.pattern)) return generateGlideExercise(spec);
   if (isVocalPattern(spec.pattern)) return generateVocalExercise(spec);
   const intervals: readonly number[] = PATTERNS[spec.pattern].intervals;
   const pitches: number[] = [];
@@ -226,6 +248,121 @@ export function generateExercise(input: unknown): Exercise {
   if (secondsAt(totalBeats, spec.bpm) > 600)
     throw new Error('Keep exercises under 10 minutes. Reduce repetitions, range, or note length.');
   return { spec, notes, totalBeats, phraseBeats, pitches, rounds };
+}
+const GLIDE_HOLD_BEATS = 2;
+const GLIDE_SLIDE_BEATS = 4;
+export const GLIDE_BEATS = 3 * GLIDE_HOLD_BEATS + 2 * GLIDE_SLIDE_BEATS;
+export function glideOffset(progress: number, span: number) {
+  const beat = Math.max(0, Math.min(1, progress)) * GLIDE_BEATS;
+  const ease = (t: number) => (1 - Math.cos(Math.PI * t)) / 2;
+  if (beat < 2) return 0;
+  if (beat < 6) return span * ease((beat - 2) / GLIDE_SLIDE_BEATS);
+  if (beat < 8) return span;
+  if (beat < 12) return span * (1 - ease((beat - 8) / GLIDE_SLIDE_BEATS));
+  return 0;
+}
+// Share the same piano voicings, timing and guide notes across vocal exercises.
+function addStartingChords(
+  tonic: number,
+  beat: number,
+  noteBeats: number,
+  descending: boolean,
+  add: (midi: number, onset: number, length: number) => NoteEvent,
+  guideNotes: NoteEvent[]
+) {
+  const approach = descending ? [-13, -1, 3, 6] : [-13, -6, -1, 3];
+  const target = descending ? [-12, 0, 4, 7] : [-12, 0, 4];
+  const approachNotes = approach.map((offset) => add(tonic + offset, beat, 2 * noteBeats));
+  guideNotes.push(approachNotes[approachNotes.length - 1]);
+  beat += 2 * noteBeats;
+  const targetNotes = target.map((offset) => add(tonic + offset, beat, 4 * noteBeats));
+  guideNotes.push(targetNotes[targetNotes.length - 1]);
+  return beat + 4 * noteBeats;
+}
+export function notePitchAt(note: NoteEvent, beat: number) {
+  return (
+    note.midi +
+    (note.glideSpan ? glideOffset((beat - note.onsetBeat) / note.slotBeats, note.glideSpan) : 0)
+  );
+}
+function generateGlideExercise(spec: ExerciseSpec): Exercise {
+  const span = vocalSpan(spec.pattern);
+  if (spec.high - spec.low < span)
+    throw new Error(
+      `${PATTERNS[spec.pattern].name} needs a range of at least ${span === 12 ? 'an octave' : 'a perfect fifth'}.`
+    );
+  const roots = Array.from({ length: spec.high - spec.low - span + 1 }, (_, i) => spec.low + i);
+  const cueBeats = spec.startingChords ? 6 * spec.noteBeats : 0;
+  const glideBeats = GLIDE_BEATS * spec.noteBeats;
+  const phraseLength = cueBeats + glideBeats;
+  const phraseBeats = roots.length * phraseLength + (roots.length - 1) * spec.restBeats;
+  const totalBeats =
+    spec.countIn + spec.repetitions * phraseBeats + (spec.repetitions - 1) * spec.restBeats;
+  if (secondsAt(totalBeats, spec.bpm) > 600)
+    throw new Error('Keep exercises under 10 minutes. Reduce repetitions, range, or rests.');
+  const notes: NoteEvent[] = [],
+    rounds: PracticeRound[] = [],
+    guideNotes: NoteEvent[] = [];
+  for (let rep = 0; rep < spec.repetitions; rep++)
+    roots.forEach((root, index) => {
+      const beat =
+        spec.countIn +
+        rep * (phraseBeats + spec.restBeats) +
+        index * (phraseLength + spec.restBeats);
+      rounds.push({
+        id: rounds.length,
+        midi: root,
+        degree: 0,
+        onsetBeat: beat,
+        endBeat: beat + phraseLength,
+      });
+      if (spec.startingChords)
+        addStartingChords(
+          root,
+          beat,
+          spec.noteBeats,
+          false,
+          (midi, onsetBeat, length) => {
+            const note: NoteEvent = {
+              id: notes.length,
+              midi,
+              onsetBeat,
+              durationBeats: length * spec.gate,
+              slotBeats: length,
+              repetition: rep + 1,
+              degree: (midi - root + 120) % 12,
+              velocity: 0.65,
+            };
+            notes.push(note);
+            return note;
+          },
+          guideNotes
+        );
+      notes.push({
+        id: notes.length,
+        midi: root,
+        degree: 0,
+        onsetBeat: beat + cueBeats,
+        durationBeats: glideBeats,
+        slotBeats: glideBeats,
+        repetition: rep + 1,
+        velocity: 0.8,
+        glideSpan: span,
+      });
+      guideNotes.push(notes[notes.length - 1]);
+    });
+  return {
+    spec,
+    notes,
+    guideNotes,
+    rounds,
+    totalBeats,
+    phraseBeats,
+    pitches: [
+      ...new Set(notes.flatMap((note) => [note.midi, note.midi + (note.glideSpan ?? 0)])),
+    ].sort((a, b) => a - b),
+    title: PATTERNS[spec.pattern].name,
+  };
 }
 function generateVocalExercise(spec: ExerciseSpec): Exercise {
   const rossini = spec.pattern === 'rossini';
@@ -309,19 +446,14 @@ function generateVocalExercise(spec: ExerciseSpec): Exercise {
         endBeat: beat + phraseLength,
       });
       if (spec.startingChords) {
-        const tonic = descending ? root - span : root;
-        const approach = descending ? [-13, -1, 3, 6] : [-13, -6, -1, 3];
-        const target = descending ? [-12, 0, 4, 7] : [-12, 0, 4];
-        const approachNotes = approach.map((offset) =>
-          add(tonic + offset, beat, 2 * spec.noteBeats, rep + 1, root, false)
+        beat = addStartingChords(
+          descending ? root - span : root,
+          beat,
+          spec.noteBeats,
+          descending,
+          (midi, onset, length) => add(midi, onset, length, rep + 1, root, false),
+          guideNotes
         );
-        guideNotes.push(approachNotes[approachNotes.length - 1]);
-        beat += 2 * spec.noteBeats;
-        const targetNotes = target.map((offset) =>
-          add(tonic + offset, beat, 4 * spec.noteBeats, rep + 1, root, false)
-        );
-        guideNotes.push(targetNotes[targetNotes.length - 1]);
-        beat += 4 * spec.noteBeats;
       }
       offsets.forEach((offset, i) => {
         add(root + offset, beat, lengths[i] * spec.noteBeats, rep + 1, root, true);

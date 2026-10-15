@@ -24,7 +24,15 @@ const DEFAULT_SPEC = {
 test('exercise choices include Rossini Scale, with Arpeggio & Scale E3-E5 at 150 BPM as the default', () => {
   assert.deepEqual(
     Object.values(PATTERNS).map((p) => p.name),
-    ['Arpeggio & Scale', 'Octave Arpeggio', 'Rossini Scale', 'Five-Note Scale', 'Major Scale']
+    [
+      'Arpeggio & Scale',
+      'Octave Arpeggio',
+      'Rossini Scale',
+      'Five-Note Scale',
+      'Major Scale',
+      'Fifth Glide',
+      'Octave Glide',
+    ]
   );
   assert.equal(APP_DEFAULT_SPEC.pattern, 'arpeggio');
   assert.equal(APP_DEFAULT_SPEC.low, 52);

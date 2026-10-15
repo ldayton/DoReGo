@@ -21,6 +21,7 @@ export async function preloadSteinway(exercise: Exercise) {
   const generation = ++preloadGeneration;
   const files = new Map<string, number>();
   for (const n of exercise.notes) {
+    if (n.glideSpan) continue;
     const r = pianoRegion(n.midi, n.velocity ?? 0.7);
     const file = `${r.folder}/${r.file}`;
     const needed = Math.ceil(

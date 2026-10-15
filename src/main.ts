@@ -17,6 +17,7 @@ import {
 import {
   DEFAULT_SPEC,
   isVocalPattern,
+  isGlidePattern,
   vocalSpan,
   PATTERNS,
   generateExercise,
@@ -115,6 +116,7 @@ $('#app').innerHTML = `
           )
             .map(([id, p]) => `<option value="${id}">${p.name}</option>`)
             .join('')}</select></label>
+          <p id="form-error" class="error-message" role="alert" hidden></p>
 
           <label class="field">Key<select name="startingNote" id="key">${Array.from(
             { length: 73 },
@@ -141,7 +143,6 @@ $('#app').innerHTML = `
             <label class="field">Volume <span class="volume-row"><i data-lucide="volume-2"></i><input name="volume" id="volume" type="range" min="-36" max="0" step="1" /></span></label>
             <label class="toggle-row"><span>Metronome</span><input name="metronome" id="metronome" type="checkbox" role="switch" /></label>
           </div></details>
-          <p id="form-error" class="error-message" role="alert" hidden></p>
         </form>
       </aside>
       <section class="workspace" aria-label="Practice studio">
@@ -153,7 +154,7 @@ $('#app').innerHTML = `
     </div>
 
   </main>
-  <dialog id="how-dialog" class="dialog"><div class="dialog-top"><button class="icon-button close-dialog" aria-label="Close how it works"><i data-lucide="x"></i></button></div><h2>Help</h2><ol class="how-steps"><li>Choose an exercise, range, and tempo.</li><li>Press Play and follow the notes.</li><li>Adjust the exercise whenever you like.</li></ol><p class="field-hint">Shortcuts: Space to play or pause. R to restart. F for fullscreen.</p><p class="field-hint"><a href="${import.meta.env.BASE_URL}samples/bitklavier/NOTICE.txt" target="_blank" rel="noopener">bitKlavier Grand recordings &amp; credits · CC BY 4.0</a></p></dialog>
+  <dialog id="how-dialog" class="dialog"><div class="dialog-top"><button class="icon-button close-dialog" aria-label="Close how it works"><i data-lucide="x"></i></button></div><h2>Help</h2><ol class="how-steps"><li>Choose an exercise, range, and tempo.</li><li>Press Play and follow the notes.</li><li>Adjust the exercise whenever you like.</li></ol><p class="field-hint">Shortcuts: Space to play or pause. R to restart. F for fullscreen.</p><p class="field-hint"><a href="${import.meta.env.BASE_URL}samples/bitklavier/NOTICE.txt" target="_blank" rel="noopener">bitKlavier Grand recordings &amp; credits · CC BY 4.0</a></p><p class="field-hint"><a href="${import.meta.env.BASE_URL}samples/vsco-cello/NOTICE.txt" target="_blank" rel="noopener">VSCO cello recordings &amp; credits · CC0</a></p></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
 `;
 
@@ -262,8 +263,8 @@ function populate() {
   $<HTMLInputElement>('#tempo-slider').value = String(spec.bpm);
   const vocal = isVocalPattern(spec.pattern);
   const direction = $<HTMLFieldSetElement>('#direction');
-  direction.hidden = spec.pattern === 'rossini';
-  direction.disabled = spec.pattern === 'rossini';
+  direction.hidden = spec.pattern === 'rossini' || isGlidePattern(spec.pattern);
+  direction.disabled = spec.pattern === 'rossini' || isGlidePattern(spec.pattern);
   for (const id of ['key']) {
     const element = $<HTMLSelectElement>(`#${id}`);
     element.disabled = vocal;
@@ -342,7 +343,7 @@ async function warmPiano() {
     if (generation !== warmupGeneration) return;
     pianoWarming = false;
     pianoFailed = true;
-    toast(error instanceof Error ? error.message : 'Could not warm up the piano. Try again.');
+    toast(error instanceof Error ? error.message : 'Could not load the recordings. Try again.');
   }
   update();
 }
@@ -476,7 +477,7 @@ function update() {
   const label = pianoWarming
     ? 'Loading...'
     : pianoFailed
-      ? 'Retry piano'
+      ? 'Retry audio'
       : mode === 'playing'
         ? 'Pause'
         : mode === 'paused'
@@ -499,7 +500,9 @@ function update() {
   $('#elapsed').textContent = formatTime(Math.min(position, duration));
   $('#duration').textContent = formatTime(duration);
   $('#exercise-summary').textContent = exercise.title
-    ? `${exercise.notes.length} notes · ${exercise.rounds.length} rounds`
+    ? isGlidePattern(spec.pattern)
+      ? `${exercise.rounds.length} ${exercise.rounds.length === 1 ? 'glide' : 'glides'}`
+      : `${exercise.notes.length} notes · ${exercise.rounds.length} rounds`
     : `${exercise.notes.length} notes · ${spec.repetitions} ${spec.repetitions === 1 ? 'round' : 'rounds'} · ${spec.countIn ? (spec.countIn % 4 === 0 ? `${spec.countIn / 4}-bar count-in` : `${spec.countIn}-beat count-in`) : 'No count-in'}`;
 }
 function tick() {

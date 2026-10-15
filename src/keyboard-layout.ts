@@ -12,7 +12,10 @@ export function vocalPhraseNotes(exercise: Exercise, round: PracticeRound) {
 }
 export function keyboardRange(exercise: Exercise, round: PracticeRound, mobile: boolean) {
   const pitches = mobile
-    ? vocalPhraseNotes(exercise, round).map((note) => note.midi)
+    ? vocalPhraseNotes(exercise, round).flatMap((note) => [
+        note.midi,
+        note.midi + (note.glideSpan ?? 0),
+      ])
     : exercise.pitches;
   // Desktop includes accompaniment; mobile stays focused on the vocal phrase.
   let low = Math.max(
