@@ -2,6 +2,9 @@ import { secondsAt, metronomeBeat, type Exercise } from './music';
 
 export type AudioEvent = {
   kind: 'note' | 'click' | 'glide';
+  id: string;
+  onsetBeat: number;
+  endBeat: number;
   glide?: { midi: number; span: number; duration: number };
   time: number;
   duration: number;
@@ -19,6 +22,9 @@ export function audioEvents(exercise: Exercise, offset: number): AudioEvent[] {
     if (end <= offset) continue;
     events.push({
       kind: note.glideSpan ? 'glide' : 'note',
+      id: `note:${note.id}`,
+      onsetBeat: note.onsetBeat,
+      endBeat: note.onsetBeat + note.durationBeats,
       ...(note.glideSpan
         ? { glide: { midi: note.midi, span: note.glideSpan, duration: end - start } }
         : {}),
@@ -35,6 +41,9 @@ export function audioEvents(exercise: Exercise, offset: number): AudioEvent[] {
     const click = metronomeBeat(beat, countIn);
     events.push({
       kind: 'click',
+      id: `click:${beat}`,
+      onsetBeat: beat,
+      endBeat: beat + (0.025 * bpm) / 60,
       time: time - offset,
       duration: 0.025,
       elapsed: 0,

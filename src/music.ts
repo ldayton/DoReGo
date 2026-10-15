@@ -207,10 +207,10 @@ export function validateSpec(input: unknown): ExerciseSpec {
   if (result.low > result.high) throw new Error('The lowest note must be below the highest note.');
   return result;
 }
-export function generateExercise(input: unknown): Exercise {
+export function generateExercise(input: unknown, maxDuration = 600): Exercise {
   const spec = validateSpec(input);
-  if (isGlidePattern(spec.pattern)) return generateGlideExercise(spec);
-  if (isVocalPattern(spec.pattern)) return generateVocalExercise(spec);
+  if (isGlidePattern(spec.pattern)) return generateGlideExercise(spec, maxDuration);
+  if (isVocalPattern(spec.pattern)) return generateVocalExercise(spec, maxDuration);
   const intervals: readonly number[] = PATTERNS[spec.pattern].intervals;
   const pitches: number[] = [];
   for (let midi = spec.low; midi <= spec.high; midi++)
@@ -245,7 +245,7 @@ export function generateExercise(input: unknown): Exercise {
   }
   const totalBeats =
     spec.countIn + spec.repetitions * phraseBeats + (spec.repetitions - 1) * spec.restBeats;
-  if (secondsAt(totalBeats, spec.bpm) > 600)
+  if (secondsAt(totalBeats, spec.bpm) > maxDuration)
     throw new Error('Keep exercises under 10 minutes. Reduce repetitions, range, or note length.');
   return { spec, notes, totalBeats, phraseBeats, pitches, rounds };
 }
@@ -285,7 +285,7 @@ export function notePitchAt(note: NoteEvent, beat: number) {
     (note.glideSpan ? glideOffset((beat - note.onsetBeat) / note.slotBeats, note.glideSpan) : 0)
   );
 }
-function generateGlideExercise(spec: ExerciseSpec): Exercise {
+function generateGlideExercise(spec: ExerciseSpec, maxDuration: number): Exercise {
   const span = vocalSpan(spec.pattern);
   if (spec.high - spec.low < span)
     throw new Error(
@@ -298,7 +298,7 @@ function generateGlideExercise(spec: ExerciseSpec): Exercise {
   const phraseBeats = roots.length * phraseLength + (roots.length - 1) * spec.restBeats;
   const totalBeats =
     spec.countIn + spec.repetitions * phraseBeats + (spec.repetitions - 1) * spec.restBeats;
-  if (secondsAt(totalBeats, spec.bpm) > 600)
+  if (secondsAt(totalBeats, spec.bpm) > maxDuration)
     throw new Error('Keep exercises under 10 minutes. Reduce repetitions, range, or rests.');
   const notes: NoteEvent[] = [],
     rounds: PracticeRound[] = [],
@@ -364,7 +364,7 @@ function generateGlideExercise(spec: ExerciseSpec): Exercise {
     title: PATTERNS[spec.pattern].name,
   };
 }
-function generateVocalExercise(spec: ExerciseSpec): Exercise {
+function generateVocalExercise(spec: ExerciseSpec, maxDuration: number): Exercise {
   const rossini = spec.pattern === 'rossini';
   const span = vocalSpan(spec.pattern);
   const descending = !rossini && spec.direction === 'down';
@@ -403,7 +403,7 @@ function generateVocalExercise(spec: ExerciseSpec): Exercise {
   const phraseBeats = roots.length * phraseLength + (roots.length - 1) * spec.restBeats;
   const totalBeats =
     spec.countIn + spec.repetitions * phraseBeats + (spec.repetitions - 1) * spec.restBeats;
-  if (secondsAt(totalBeats, spec.bpm) > 600)
+  if (secondsAt(totalBeats, spec.bpm) > maxDuration)
     throw new Error(
       'Keep exercises under 10 minutes. Reduce repetitions, range, rests, or note length.'
     );

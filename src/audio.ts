@@ -1,3 +1,4 @@
+import { TempoClock, type LiveVoice } from './tempo-clock';
 import { CelloGlides, preloadCello } from './cello';
 import * as Tone from 'tone';
 import { secondsAt, type Exercise } from './music';
@@ -19,11 +20,38 @@ function makeGraph(volume: number) {
   const output = new Tone.Volume(volume <= -60 ? -Infinity : volume).connect(limiter);
   const synth = new SteinwayGrand(output);
   const cello = new CelloGlides(output);
-  const click = new Tone.Synth({
-    oscillator: { type: 'sine' },
-    envelope: { attack: 0.001, decay: 0.025, sustain: 0, release: 0.02 },
-    volume: -9,
-  }).connect(output);
+  const clicks = new Set<() => void>();
+  const click = (
+    frequency: number,
+    duration: number,
+    time: number,
+    velocity: number
+  ): LiveVoice => {
+    const context = output.context;
+    const source = context.createOscillator(),
+      gain = context.createGain();
+    source.frequency.value = frequency;
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(velocity * 0.35, time + 0.001);
+    gain.gain.exponentialRampToValueAtTime(0.00001, time + duration + 0.02);
+    source.connect(gain);
+    Tone.connect(gain, output);
+    const cleanup = () => {
+      source.onended = null;
+      source.disconnect();
+      gain.disconnect();
+      clicks.delete(cancel);
+    };
+    const cancel = () => {
+      source.stop();
+      cleanup();
+    };
+    source.onended = cleanup;
+    clicks.add(cancel);
+    source.start(time);
+    source.stop(time + duration + 0.025);
+    return { cancel, retime() {} };
+  };
   return {
     synth,
     cello,
@@ -32,7 +60,8 @@ function makeGraph(volume: number) {
     dispose() {
       synth.dispose();
       cello.dispose();
-      click.dispose();
+      for (const cancel of clicks) cancel();
+      clicks.clear();
       output.dispose();
       limiter.dispose();
     },
@@ -40,10 +69,9 @@ function makeGraph(volume: number) {
 }
 function playEvent(event: AudioEvent, graph: ReturnType<typeof makeGraph>, time: number, late = 0) {
   if (event.kind === 'click') {
-    if (late < 0.04)
-      graph.click.triggerAttackRelease(event.frequency, event.duration, time, event.velocity);
+    if (late < 0.04) return graph.click(event.frequency, event.duration, time, event.velocity);
   } else if (event.kind === 'glide' && event.glide) {
-    graph.cello.play(
+    return graph.cello.play(
       event.glide.midi,
       event.glide.span,
       event.glide.duration,
@@ -52,7 +80,7 @@ function playEvent(event: AudioEvent, graph: ReturnType<typeof makeGraph>, time:
       event.velocity
     );
   } else if (event.duration > late) {
-    graph.synth.triggerAttackRelease(
+    return graph.synth.triggerAttackRelease(
       event.frequency,
       event.duration - late,
       time,
@@ -61,50 +89,123 @@ function playEvent(event: AudioEvent, graph: ReturnType<typeof makeGraph>, time:
     );
   }
 }
+// Prepare the longest supported live tempo once, so slowing down never loads
+// recordings mid-phrase. Offline exports retain their existing smaller cache.
+function prepareLive(exercise: Exercise) {
+  return Promise.all([
+    preloadSteinway({ ...exercise, spec: { ...exercise.spec, bpm: 60 } }),
+    preloadCello(exercise),
+  ]);
+}
 export class Player {
   private graph: ReturnType<typeof makeGraph> | null = null;
-  private epoch = 0;
-  private offset = 0;
+  private clock: TempoClock | null = null;
+  private exercise: Exercise | null = null;
+  private seekBeat = 0;
   private pending = 0;
+  private events: AudioEvent[] = [];
+  private cursor = 0;
+  private voices = new Map<string, { event: AudioEvent; voice: LiveVoice; start: number }>();
   private scheduler: ReturnType<typeof setInterval> | undefined;
   async prepare(exercise: Exercise) {
     initPlayback();
-    await Promise.all([preloadSteinway(exercise), preloadCello(exercise)]);
+    await prepareLive(exercise);
   }
   async play(exercise: Exercise, offset = 0) {
     this.stop();
     const token = ++this.pending;
-    this.offset = offset;
+    this.exercise = exercise;
+    this.seekBeat = (offset * exercise.spec.bpm) / 60;
     initPlayback();
     await Tone.start();
     if (token !== this.pending) return false;
-    await Promise.all([preloadSteinway(exercise), preloadCello(exercise)]);
+    await prepareLive(exercise);
     if (token !== this.pending) return false;
-    this.graph = makeGraph(exercise.spec.volume);
-    this.offset = offset;
-    this.epoch = Tone.now() + 0.05;
-    const graph = this.graph;
-    const events = audioEvents(exercise, offset);
-    let cursor = 0;
-    const fill = () => {
-      const now = graph.output.context.immediate();
-      // Bound live node count; keep a full second buffered through UI stalls.
-      while (cursor < events.length && this.epoch + events[cursor].time < now + 1) {
-        const event = events[cursor++];
-        const planned = this.epoch + event.time;
-        const time = Math.max(planned, now + 0.015);
-        playEvent(event, graph, time, Math.max(0, time - planned));
-      }
-    };
-    fill();
-    this.scheduler = setInterval(fill, 100);
+    const current = this.exercise!;
+    this.graph = makeGraph(current.spec.volume);
+    this.clock = new TempoClock(Tone.now() + 0.05, this.seekBeat, current.spec.bpm);
+    this.events = audioEvents(current, secondsAt(this.seekBeat, current.spec.bpm));
+    this.cursor = 0;
+    this.fill();
+    this.scheduler = setInterval(() => this.fill(), 100);
     return true;
   }
+  private fill() {
+    if (!this.graph || !this.clock || !this.exercise) return;
+    const graph = this.graph,
+      clock = this.clock,
+      bpm = this.exercise.spec.bpm;
+    const now = graph.output.context.immediate();
+    const beat = clock.beatAt(now);
+    for (const [id, entry] of this.voices) if (entry.event.endBeat <= beat) this.voices.delete(id);
+    // Retain one second of audio-clock scheduling through main-thread stalls.
+    while (this.cursor < this.events.length) {
+      const event = this.events[this.cursor];
+      const planned = clock.timeAt(Math.max(this.seekBeat, event.onsetBeat));
+      if (planned >= now + 1) break;
+      this.cursor++;
+      if (this.voices.has(event.id) || event.endBeat <= beat) continue;
+      const time = Math.max(planned, now + 0.015);
+      const elapsed = secondsAt(Math.max(0, clock.beatAt(time) - event.onsetBeat), bpm);
+      const fullDuration = secondsAt(event.endBeat - event.onsetBeat, bpm);
+      const voice = playEvent(
+        {
+          ...event,
+          elapsed: 0,
+          duration: fullDuration,
+          ...(event.glide ? { glide: { ...event.glide, duration: fullDuration } } : {}),
+        },
+        graph,
+        time,
+        elapsed
+      );
+      if (voice) this.voices.set(event.id, { event, voice, start: time });
+    }
+  }
+  setVolume(volume: number) {
+    if (!Number.isFinite(volume) || volume < -60 || volume > 0)
+      throw new Error('Choose a volume from -60 to 0 dB.');
+    if (this.exercise)
+      this.exercise = { ...this.exercise, spec: { ...this.exercise.spec, volume } };
+    if (this.graph)
+      this.graph.output.volume.rampTo(
+        volume <= -60 ? -Infinity : volume,
+        0.02,
+        this.graph.output.context.immediate()
+      );
+  }
+  setTempo(bpm: number) {
+    if (!Number.isFinite(bpm) || bpm < 60 || bpm > 240)
+      throw new Error('Choose a tempo from 60 to 240 BPM.');
+    if (!this.exercise || bpm === this.exercise.spec.bpm) return;
+    this.exercise = { ...this.exercise, spec: { ...this.exercise.spec, bpm } };
+    if (!this.graph || !this.clock) return;
+    const now = this.graph.output.context.immediate(),
+      beat = this.clock.beatAt(now);
+    for (const [id, entry] of this.voices) {
+      if (entry.start > now) {
+        entry.voice.cancel();
+        this.voices.delete(id);
+      } else if (entry.event.endBeat > beat && entry.event.kind !== 'click') {
+        const { onsetBeat, endBeat } = entry.event;
+        entry.voice.retime(
+          now,
+          secondsAt(endBeat - beat, bpm),
+          (beat - onsetBeat) / (endBeat - onsetBeat)
+        );
+      } else this.voices.delete(id);
+    }
+    this.clock.setTempo(now, bpm);
+    this.events = audioEvents(this.exercise, secondsAt(beat, bpm));
+    this.cursor = 0;
+    this.fill();
+  }
   get position() {
-    if (!this.graph || !playbackContext) return this.offset;
+    const bpm = this.exercise?.spec.bpm ?? 60;
+    if (!this.graph || !playbackContext || !this.clock) return secondsAt(this.seekBeat, bpm);
     const stamp = playbackContext.getOutputTimestamp?.();
-    const contextTime = stamp?.contextTime ?? 0;
-    const performanceTime = stamp?.performanceTime ?? 0;
+    const contextTime = stamp?.contextTime ?? 0,
+      performanceTime = stamp?.performanceTime ?? 0;
     const audibleTime =
       contextTime > 0 && performanceTime > 0
         ? Math.min(
@@ -114,16 +215,18 @@ export class Player {
         : playbackContext.currentTime -
           playbackContext.baseLatency -
           (playbackContext.outputLatency || 0);
-    return this.offset + Math.max(0, audibleTime - this.epoch);
+    return secondsAt(this.clock.beatAt(audibleTime), bpm);
   }
   stop() {
     ++this.pending;
     clearInterval(this.scheduler);
     this.scheduler = undefined;
     const graph = this.graph;
+    if (graph) this.seekBeat = (this.position * (this.exercise?.spec.bpm ?? 60)) / 60;
     this.graph = null;
+    this.clock = null;
+    this.voices.clear();
     if (graph) {
-      // A hard disconnect at an arbitrary waveform position creates a click.
       graph.output.volume.rampTo(-100, 0.02, graph.output.context.immediate());
       setTimeout(() => graph.dispose(), 50);
     }

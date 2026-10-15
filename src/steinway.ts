@@ -1,3 +1,4 @@
+import { holdParam, type LiveVoice } from './tempo-clock';
 import * as Tone from 'tone';
 import { BITKLAVIER_SAMPLES } from './bitklavier-samples';
 import type { Exercise } from './music';
@@ -135,6 +136,17 @@ export class SteinwayGrand {
     this.sources.add(cancel);
     source.start(time, Math.min(elapsed * rate, buffer.duration));
     source.stop(time + duration + 0.36);
+    return {
+      cancel,
+      retime(at, remaining) {
+        holdParam(gain.gain, at);
+        gain.gain.linearRampToValueAtTime(velocity, at + Math.min(0.002, remaining / 2));
+        gain.gain.setValueAtTime(velocity, at + remaining);
+        gain.gain.exponentialRampToValueAtTime(0.00001, at + remaining + 0.35);
+        gain.gain.linearRampToValueAtTime(0, at + remaining + 0.36);
+        source.stop(at + remaining + 0.36);
+      },
+    } satisfies LiveVoice;
   }
   dispose() {
     for (const cancel of this.sources) cancel();

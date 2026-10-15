@@ -121,9 +121,31 @@ try {
   assert.equal(result.hint, 'playback');
   assert.ok(result.peakSources < 40, JSON.stringify(result));
   assert.equal(result.late, 0);
-  assert.ok(result.maxSampleSeconds <= 3, 'Short notes should not retain 30-second decoded tails');
+  assert.ok(
+    result.maxSampleSeconds <= 6,
+    'Live notes retain enough audio for 60 BPM, without retaining 30-second tails'
+  );
   assert.ok(result.audio.peak > 0.01);
   assert.equal(result.audio.clipped, 0);
+  const loudRms = Math.sqrt(result.audio.energy / result.audio.count);
+  await page.locator('#volume').fill('-24');
+  assert.equal(await page.locator('#play').innerText(), 'Pause');
+  await page.waitForTimeout(50);
+  await page.evaluate(() => {
+    const a = (window as any).audioProbe.audio;
+    a.energy = 0;
+    a.count = 0;
+  });
+  await page.waitForTimeout(300);
+  const quietRms = await page.evaluate(() => {
+    const a = (window as any).audioProbe.audio;
+    return Math.sqrt(a.energy / a.count);
+  });
+  assert.ok(
+    quietRms > 0 && quietRms < loudRms * 0.3,
+    `Live volume did not attenuate audio: ${loudRms} -> ${quietRms}`
+  );
+  assert.equal(await page.locator('#metronome').count(), 0);
   await page.locator('#play').click();
   await page.waitForTimeout(300);
   const silenceStart = await page.evaluate(() => {
@@ -142,7 +164,7 @@ try {
   assert.ok(stopped.rms < 0.00001, JSON.stringify(stopped));
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: bounded live sources, playback buffering, 400ms UI stall, full-volume stereo output without clipping, and silent cleanup.'
+    'PASS: bounded live sources, playback buffering, 400ms UI stall, full-volume stereo output without clipping, live volume attenuation without restarting, and silent cleanup.'
   );
   console.log(JSON.stringify(result));
 } finally {

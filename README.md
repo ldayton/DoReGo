@@ -36,8 +36,8 @@ No account, API key, microphone access, or hosted service is required. CC BY 4.0
 - Piano samples warm up automatically before playback. A “Loading...” indicator appears immediately while preparing; Play becomes available as soon as the selected exercise is ready; failed loads offer a retry.
 - Exercise, range, tempo, direction, and other preferences are saved automatically in browser local storage and restored on return. New users start with Arpeggio & Scale E3–E5 at 150 BPM.
 - Tempo −/+ buttons step by 5 BPM. Repeats count additional passes (None means one pass); repeats and rest use stacked arrows on desktop and None–4 dropdowns on mobile.
-- Optional metronome.
-- Play/pause, scrub, restart, and fullscreen. Space toggles playback, R restarts, F toggles fullscreen when a form control is not focused. Editing settings resets playback so the display and sound use the same exercise.
+- Volume is independent beneath tempo and can change during playback with a short gain ramp. Count-in clicks stop when the exercise begins.
+- Play/pause, scrub, restart, and fullscreen. Space toggles playback, R restarts, F toggles fullscreen when a form control is not focused. Tempo is independent: change it at any time with the slider, numeric field, or −/+ buttons. Playback keeps the current round and beat, including through count-ins, rests, and cello glides. Volume also changes live without restarting, in its own row below tempo. Other exercise edits reset playback.
 
 On phones, the practice canvas uses a taller layout with larger keys. The keyboard focuses on the vocal phrase, keeps key sizes fixed for the whole exercise, and slides between rounds. Intro chords remain audible but are not visualized on mobile. Desktop and exported video retain the wide layout.
 
@@ -123,7 +123,9 @@ Source: https://versilian-studios.com/vsco-community/ and https://github.com/sgo
 
 ### Audio reliability checks
 
-`npm run test:audio` instruments live browser playback of a wide-range bitKlavier exercise at full volume. It checks bounded source count, sample tail memory retention, native scheduling through a 400 ms main-thread stall, non-silent output without clipping, and silent cleanup after pause. The sample loader limits concurrent decodes to four, retains only the duration needed by each exercise (including pitch shift and release), reloads longer samples when necessary, and evicts unused cached data above 128 MiB. An exercise that itself needs more than that budget keeps its required samples. Original recordings remain unchanged. Tests cannot certify the absence of glitches at physical speakers or external audio devices.
+`npm run test:audio` instruments live browser playback of a wide-range bitKlavier exercise at full volume. It checks bounded source count, sample tail memory retention, native scheduling through a 400 ms main-thread stall, non-silent output without clipping, and silent cleanup after pause. The sample loader limits concurrent decodes to four, retains the duration needed at 60 BPM for live practice (including pitch shift and release), so any supported tempo is ready without another load; offline rendering retains only its requested duration, reloads longer samples when necessary, and evicts unused cached data above 128 MiB. An exercise that itself needs more than that budget keeps its required samples. Original recordings remain unchanged. Tests cannot certify the absence of glitches at physical speakers or external audio devices.
+
+`npm run test:tempo` checks live tempo changes during count-in, piano notes, and cello glides, verifies that sounding sources continue and beat position is retained, and checks paused changes, slider/buttons/typing, and persistence. The player uses a beat clock with tempo history for output-latency alignment, cancels only future scheduled voices, and retimes active note releases and glide curves on the audio clock. Practice has no wall-time duration cap when slowing down; CLI/video generation retains its ten-minute limit.
 
 ## GitHub Pages
 

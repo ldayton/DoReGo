@@ -55,6 +55,8 @@ try {
     'Rossini Scale',
     'Five-Note Scale',
     'Major Scale',
+    'Fifth Glide',
+    'Octave Glide',
   ]);
   assert.deepEqual(await page.locator('#direction label span').allTextContents(), [
     'Ascending',
@@ -166,7 +168,7 @@ try {
     voice: 'bitklavier' as const,
     low: 60,
     high: 60,
-    bpm: 30,
+    bpm: 60,
     noteBeats: 4,
     gate: 1,
     countIn: 0,
@@ -179,7 +181,7 @@ try {
   );
   let sustainedEnergy = 0,
     sustainedCount = 0;
-  for (let offset = 44 + 4 * 44100 * 4; offset < 44 + 5 * 44100 * 4; offset += 2) {
+  for (let offset = 44 + 2 * 44100 * 4; offset < 44 + 3 * 44100 * 4; offset += 2) {
     sustainedEnergy += sustained.readInt16LE(offset) ** 2;
     sustainedCount++;
   }

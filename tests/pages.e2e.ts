@@ -292,10 +292,17 @@ try {
       assert.equal(await field.inputValue(), String(value), `Stored ${id} was overwritten`);
   }
   assert.ok(await preferencesPage.locator('input[name="direction"][value="down"]').isChecked());
-  assert.ok(await preferencesPage.locator('#metronome').isChecked());
+  assert.equal(await preferencesPage.locator('#metronome').count(), 0);
   assert.ok(!(await preferencesPage.locator('#startingChords').isChecked()));
   await preferencesPage.locator('#bpm').fill('194');
   await preferencesPage.locator('#bpm').press('Tab');
+  assert.equal(
+    await preferencesPage.evaluate(
+      () => JSON.parse(localStorage.getItem('dorego.current')!).metronome
+    ),
+    false
+  );
+
   await preferencesPage.reload();
   assert.equal(await preferencesPage.locator('#bpm').inputValue(), '194');
   assert.equal(await preferencesPage.locator('#pattern').inputValue(), 'fiveNote');

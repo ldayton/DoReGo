@@ -1,3 +1,4 @@
+import { holdParam, type LiveVoice } from './tempo-clock';
 import * as Tone from 'tone';
 import { glideOffset, type Exercise } from './music';
 
@@ -137,6 +138,29 @@ export class CelloGlides {
     this.sources.add(cancel);
     source.start(time, offset);
     source.stop(time + duration + 0.02);
+    return {
+      cancel,
+      retime(at, remaining, progress) {
+        // Keep the bow recording running; only replace its future pitch curve.
+        holdParam(source.playbackRate, at);
+        source.playbackRate.setValueCurveAtTime(
+          Float32Array.from(
+            { length: 4096 },
+            (_, i) =>
+              2 ** ((midi - key + glideOffset(progress + ((1 - progress) * i) / 4095, span)) / 12)
+          ),
+          at,
+          remaining
+        );
+        holdParam(gain.gain, at);
+        if (remaining > 0.2) {
+          gain.gain.linearRampToValueAtTime(velocity, at + Math.min(0.02, (remaining - 0.18) / 2));
+          gain.gain.setValueAtTime(velocity, at + remaining - 0.18);
+        }
+        gain.gain.linearRampToValueAtTime(0, at + remaining);
+        source.stop(at + remaining + 0.02);
+      },
+    } satisfies LiveVoice;
   }
   dispose() {
     for (const cancel of this.sources) cancel();
