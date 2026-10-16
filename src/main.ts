@@ -30,7 +30,7 @@ import {
   practiceAt,
   type ExerciseSpec,
 } from './music';
-import { Player, RELEASE_TAIL } from './audio';
+import { Player } from './audio';
 import { NoteWheel } from './note-wheel';
 import { NotePicker } from './note-picker';
 import { AnchoredSelect } from './anchored-select';
@@ -68,7 +68,8 @@ function savedSpec(): ExerciseSpec {
 const generateExercise = (input: unknown) => generateBoundedExercise(input, Infinity);
 let spec = savedSpec();
 let exercise = generateExercise(spec);
-let mode: 'ready' | 'playing' | 'paused' | 'complete' = 'ready';
+let mode: 'ready' | 'starting' | 'playing' | 'paused' | 'complete' = 'ready';
+let playRequest = 0;
 let position = 0;
 let raf = 0;
 const player = new Player();
@@ -381,11 +382,9 @@ function setError(message: string | null) {
   $<HTMLButtonElement>('#play').disabled = !!message || pianoWarming;
 }
 function stop(reset = true) {
-  player.stop();
-  cancelAnimationFrame(raf);
-  if (reset) position = 0;
-  mode = reset ? 'ready' : 'paused';
-  update();
+  ++playRequest;
+  if (reset) player.reset();
+  else player.pause();
 }
 function refresh() {
   stop();
@@ -407,11 +406,10 @@ function changeTempo() {
   syncTempoSteps();
   if (!Number.isFinite(bpm) || bpm < 60 || bpm > 240) return;
   if (bpm !== spec.bpm) {
-    const beat = (position * spec.bpm) / 60;
     player.setTempo(bpm);
     spec = { ...spec, bpm };
     exercise = { ...exercise, spec };
-    position = mode === 'playing' ? player.position : secondsAt(beat, bpm);
+    position = player.position;
     persist();
   }
   $<HTMLInputElement>('#tempo-slider').value = String(bpm);
@@ -544,7 +542,7 @@ function update() {
     ? 'Loading...'
     : pianoFailed
       ? 'Retry audio'
-      : mode === 'playing'
+      : mode === 'playing' || mode === 'starting'
         ? 'Pause'
         : mode === 'paused'
           ? 'Resume'
@@ -555,7 +553,7 @@ function update() {
   $<HTMLButtonElement>('#play').disabled = pianoWarming || !$('#form-error').hidden;
   button.setAttribute('aria-busy', String(pianoWarming));
   if (button.dataset.mode !== buttonMode) {
-    button.innerHTML = `${pianoWarming ? '<span class="piano-warmup" aria-hidden="true"><i></i><i></i><i></i></span>' : `<i data-lucide="${mode === 'playing' ? 'pause' : 'play'}"></i>`}<span>${label}</span>`;
+    button.innerHTML = `${pianoWarming ? '<span class="piano-warmup" aria-hidden="true"><i></i><i></i><i></i></span>' : `<i data-lucide="${mode === 'playing' || mode === 'starting' ? 'pause' : 'play'}"></i>`}<span>${label}</span>`;
     button.dataset.mode = buttonMode;
     iconify();
   }
@@ -574,45 +572,41 @@ function update() {
 function tick() {
   if (mode !== 'playing') return;
   position = player.position;
-  if (position >= secondsAt(exercise.totalBeats, spec.bpm) + RELEASE_TAIL) {
-    player.stop();
-    position = secondsAt(exercise.totalBeats, spec.bpm);
-    mode = 'complete';
-    update();
-    return;
-  }
   update();
   raf = requestAnimationFrame(tick);
 }
+player.onStateChange = (state, nextPosition, reason) => {
+  mode = state;
+  position = nextPosition;
+  cancelAnimationFrame(raf);
+  if (state === 'playing') tick();
+  else update();
+  if (reason === 'scheduling-gap') toast('Playback paused after a delay. Resume to continue.');
+};
 async function togglePlay() {
   if ($<HTMLButtonElement>('#play').disabled) return;
   if (pianoFailed) {
     void warmPiano();
     return;
   }
-  if (mode === 'playing') {
-    position = player.position;
+  if (mode === 'playing' || mode === 'starting') {
     stop(false);
     return;
   }
   if (position >= secondsAt(exercise.totalBeats, spec.bpm)) position = 0;
-  mode = 'playing';
-  update();
+  const request = ++playRequest;
   try {
-    if (await player.play(exercise, position)) tick();
+    await player.play(exercise, position);
   } catch (error) {
-    stop(false);
+    if (request !== playRequest) return;
     toast(error instanceof Error ? error.message : 'Could not start audio.');
   }
 }
 $('#play').addEventListener('click', () => void togglePlay());
 $('#restart').addEventListener('click', () => stop());
 $<HTMLInputElement>('#position').addEventListener('input', () => {
-  player.stop();
-  cancelAnimationFrame(raf);
-  position = Number($<HTMLInputElement>('#position').value);
-  mode = 'paused';
-  update();
+  ++playRequest;
+  player.seek(exercise, Number($<HTMLInputElement>('#position').value));
 });
 async function toggleFullscreen() {
   try {
@@ -662,4 +656,21 @@ populate();
 iconify();
 resizeStage();
 void warmPiano();
-window.addEventListener('pagehide', () => player.stop());
+// Hiding alone does not pause healthy background audio. Freezing/navigation
+// does: preserve position and require an explicit Resume after restoration.
+window.addEventListener('pagehide', () => player.interrupt('page-hidden'));
+document.addEventListener('freeze', () => player.interrupt('page-hidden'));
+window.addEventListener('pageshow', () => {
+  player.reconcile();
+  update();
+});
+document.addEventListener('resume', () => {
+  player.reconcile();
+  update();
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    player.reconcile();
+    update();
+  }
+});

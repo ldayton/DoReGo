@@ -17,7 +17,8 @@
     "test:audio": "tsx tests/audio-playback.e2e.ts",
     "build:pages": "tsc --noEmit && vite build --mode pages --outDir dist-pages",
     "test:pages": "tsx tests/pages.e2e.ts",
-    "export": "tsx scripts/export.ts"
+    "export": "tsx scripts/export.ts",
+    "test:lifecycle": "tsx tests/lifecycle.e2e.ts"
   },
   "dependencies": {
     "@tonejs/midi": "^2.0.28",

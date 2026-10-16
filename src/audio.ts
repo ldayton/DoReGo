@@ -1,4 +1,5 @@
 import { TempoClock, type LiveVoice } from './tempo-clock';
+import { PlaybackHealth, type PlaybackInterruption } from './playback-health';
 import { CelloGlides, preloadCello } from './cello';
 import * as Tone from 'tone';
 import { secondsAt, type Exercise } from './music';
@@ -8,7 +9,7 @@ import { audioEvents, type AudioEvent } from './audio-timeline';
 export const RELEASE_TAIL = 0.8;
 let playbackContext: AudioContext | undefined;
 function initPlayback() {
-  if (!playbackContext) {
+  if (!playbackContext || playbackContext.state === 'closed') {
     // This is a sequenced player: reliability matters more than live-key latency.
     playbackContext = new AudioContext({ latencyHint: 'playback' });
     Tone.setContext(new Tone.Context({ context: playbackContext, lookAhead: 0.15 }), true);
@@ -97,7 +98,26 @@ function prepareLive(exercise: Exercise) {
     preloadCello(exercise),
   ]);
 }
+export type PlaybackState = 'ready' | 'starting' | 'playing' | 'paused' | 'complete';
 export class Player {
+  state: PlaybackState = 'ready';
+  onStateChange?: (state: PlaybackState, position: number, reason?: PlaybackInterruption) => void;
+  private health: PlaybackHealth | null = null;
+  private watchedContext?: AudioContext;
+  private contextChanged = () => {
+    if (this.state === 'playing' && playbackContext?.state !== 'running')
+      this.interrupt('audio-interrupted');
+  };
+  private publish(state: PlaybackState, reason?: PlaybackInterruption) {
+    this.state = state;
+    this.onStateChange?.(state, this.position, reason);
+  }
+  private watchContext() {
+    if (this.watchedContext === playbackContext) return;
+    this.watchedContext?.removeEventListener('statechange', this.contextChanged);
+    this.watchedContext = playbackContext;
+    this.watchedContext?.addEventListener('statechange', this.contextChanged);
+  }
   private graph: ReturnType<typeof makeGraph> | null = null;
   private clock: TempoClock | null = null;
   private exercise: Exercise | null = null;
@@ -109,34 +129,98 @@ export class Player {
   private scheduler: ReturnType<typeof setInterval> | undefined;
   async prepare(exercise: Exercise) {
     initPlayback();
+    this.watchContext();
     await prepareLive(exercise);
   }
   async play(exercise: Exercise, offset = 0) {
-    this.stop();
+    this.halt();
     const token = ++this.pending;
     this.exercise = exercise;
     this.seekBeat = (offset * exercise.spec.bpm) / 60;
     initPlayback();
-    await Tone.start();
-    if (token !== this.pending) return false;
-    await prepareLive(exercise);
-    if (token !== this.pending) return false;
-    const current = this.exercise!;
-    this.graph = makeGraph(current.spec.volume);
-    this.clock = new TempoClock(Tone.now() + 0.05, this.seekBeat, current.spec.bpm);
-    this.events = audioEvents(current, secondsAt(this.seekBeat, current.spec.bpm));
-    this.cursor = 0;
-    this.fill();
-    this.scheduler = setInterval(() => this.fill(), 100);
-    return true;
+    this.watchContext();
+    this.publish('starting');
+    try {
+      await Tone.start();
+      if (token !== this.pending) return false;
+      await prepareLive(exercise);
+      if (token !== this.pending) return false;
+      if (playbackContext?.state !== 'running')
+        throw new Error('Audio is unavailable. Try Resume when the interruption ends.');
+      const current = this.exercise!;
+      this.graph = makeGraph(current.spec.volume);
+      this.clock = new TempoClock(Tone.now() + 0.05, this.seekBeat, current.spec.bpm);
+      this.events = audioEvents(current, secondsAt(this.seekBeat, current.spec.bpm));
+      this.cursor = 0;
+      this.health = new PlaybackHealth(this.graph.output.context.immediate(), performance.now());
+      this.fill();
+      if (token !== this.pending) return false;
+      this.scheduler = setInterval(() => this.fill(), 100);
+      this.publish('playing');
+      return true;
+    } catch (error) {
+      // Neither success nor failure from a superseded start may affect its successor.
+      if (token !== this.pending) return false;
+      this.halt();
+      this.publish('paused');
+      throw error;
+    }
+  }
+  pause() {
+    this.halt();
+    this.publish('paused');
+  }
+  reset() {
+    this.halt();
+    this.seekBeat = 0;
+    this.publish('ready');
+  }
+  seek(exercise: Exercise, position: number) {
+    this.halt();
+    this.exercise = exercise;
+    this.seekBeat = Math.max(0, Math.min(exercise.totalBeats, (position * exercise.spec.bpm) / 60));
+    this.publish('paused');
+  }
+  interrupt(reason: PlaybackInterruption, audioTime?: number) {
+    if (this.state !== 'playing' && this.state !== 'starting') return;
+    const beat = audioTime === undefined ? undefined : this.clock?.beatAt(audioTime);
+    this.halt();
+    if (beat !== undefined) this.seekBeat = Math.max(0, beat);
+    this.publish('paused', reason);
+  }
+  reconcile() {
+    if (this.state !== 'playing') return;
+    this.contextChanged();
+    if (this.state === 'playing') this.fill();
   }
   private fill() {
     if (!this.graph || !this.clock || !this.exercise) return;
+    if (playbackContext?.state !== 'running') {
+      this.interrupt('audio-interrupted');
+      return;
+    }
     const graph = this.graph,
       clock = this.clock,
       bpm = this.exercise.spec.bpm;
     const now = graph.output.context.immediate();
     const beat = clock.beatAt(now);
+    const next = this.events[this.cursor];
+    const interruption = this.health?.check(
+      now,
+      performance.now(),
+      next ? clock.timeAt(Math.max(this.seekBeat, next.onsetBeat)) : Infinity
+    );
+    if (interruption) {
+      this.interrupt(interruption.reason, interruption.audioTime);
+      return;
+    }
+    if (this.position >= secondsAt(this.exercise.totalBeats, bpm) + RELEASE_TAIL) {
+      const end = this.exercise.totalBeats;
+      this.halt();
+      this.seekBeat = end;
+      this.publish('complete');
+      return;
+    }
     for (const [id, entry] of this.voices) if (entry.event.endBeat <= beat) this.voices.delete(id);
     // Retain one second of audio-clock scheduling through main-thread stalls.
     while (this.cursor < this.events.length) {
@@ -175,6 +259,7 @@ export class Player {
       );
   }
   setTempo(bpm: number) {
+    this.reconcile();
     if (!Number.isFinite(bpm) || bpm < 60 || bpm > 240)
       throw new Error('Choose a tempo from 60 to 240 BPM.');
     if (!this.exercise || bpm === this.exercise.spec.bpm) return;
@@ -217,7 +302,7 @@ export class Player {
           (playbackContext.outputLatency || 0);
     return secondsAt(this.clock.beatAt(audibleTime), bpm);
   }
-  stop() {
+  private halt() {
     ++this.pending;
     clearInterval(this.scheduler);
     this.scheduler = undefined;
@@ -226,9 +311,12 @@ export class Player {
     this.graph = null;
     this.clock = null;
     this.voices.clear();
+    this.health = null;
     if (graph) {
-      graph.output.volume.rampTo(-100, 0.02, graph.output.context.immediate());
-      setTimeout(() => graph.dispose(), 50);
+      if (playbackContext?.state === 'running') {
+        graph.output.volume.rampTo(-100, 0.02, graph.output.context.immediate());
+        setTimeout(() => graph.dispose(), 50);
+      } else graph.dispose();
     }
   }
 }

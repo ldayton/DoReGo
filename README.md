@@ -129,6 +129,8 @@ Source: https://versilian-studios.com/vsco-community/ and https://github.com/sgo
 
 `npm run test:tempo` checks live tempo changes during count-in, piano notes, and cello glides, verifies that sounding sources continue and beat position is retained, and checks paused changes, slider/buttons/typing, and persistence. The player uses a beat clock with tempo history for output-latency alignment, cancels only future scheduled voices, and retimes active note releases and glide curves on the audio clock. Practice has no wall-time duration cap when slowing down; CLI/video generation retains its ten-minute limit.
 
+`npm run test:lifecycle` injects controlled faults into real browser playback: audio suspension and recovery, page restoration and freeze events, a delayed obsolete startup rejection, an audio clock stuck while reporting running, a 1.9-second scheduling stall, context closure, rapid play/pause, and completion with animation callbacks disabled. The player owns playback state and completion; drawing only observes it. Healthy hidden playback continues. Interrupted or frozen sessions preserve their place and require Resume; missed scheduling coverage pauses at the last safe checkpoint instead of skipping the exercise. Old startup results cannot alter a newer session. A closed context is recreated on the next start. These checks simulate lifecycle conditions; actual mobile screen locks, incoming calls, and OS sleep still need device testing.
+
 ## GitHub Pages
 
 The public site is https://ldayton.github.io/DoReGo/ . `.github/workflows/deploy.yml` tests, builds, and deploys each push to `main`; it can also be run manually from Actions. Repository Settings → Pages must use GitHub Actions as the source. Failed checks prevent deployment.
