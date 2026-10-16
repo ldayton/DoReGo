@@ -2,9 +2,9 @@ import { holdParam, type LiveVoice } from './tempo-clock';
 import * as Tone from 'tone';
 import { BITKLAVIER_SAMPLES } from './bitklavier-samples';
 import type { Exercise } from './music';
+import { sampleLoader } from './sample-loader';
 
 const buffers = new Map<string, AudioBuffer>();
-const loading = new Map<string, Promise<void>>();
 export function pianoRegion(midi: number, velocity: number) {
   const layer = Math.max(1, Math.min(16, Math.ceil(velocity * 16)));
   const samples = BITKLAVIER_SAMPLES.filter((sample) => sample.layer === layer);
@@ -13,83 +13,94 @@ export function pianoRegion(midi: number, velocity: number) {
   );
   return { ...region, folder: 'bitklavier' };
 }
-// Keep only the audio needed for the requested note lengths, without changing
-// the source recordings. Longer subsequent exercises reload the full source.
-const complete = new Set<string>();
+// Versioned, lossless web variants avoid downloading and decoding unused tails.
+// Custom longer CLI notes fall back to the unmodified original recordings.
+export function pianoFile(midi: number, layer: number, file: string, needed: number) {
+  if ((layer === 11 || layer === 12) && needed <= 5)
+    return `bitklavier-web-v1/${midi}-v${layer}-${needed <= 2 ? 2 : 5}s.flac`;
+  return `bitklavier/${file}`;
+}
 const CACHE_BYTES = 128 * 1024 * 1024;
 let preloadGeneration = 0;
+// Playback resolves the prepared variant by original region name.
+const prepared = new Map<string, string>();
 export async function preloadSteinway(exercise: Exercise) {
   const generation = ++preloadGeneration;
-  const files = new Map<string, number>();
+  const regions = new Map<string, { midi: number; layer: number; file: string; needed: number }>();
   for (const n of exercise.notes) {
     if (n.glideSpan) continue;
     const r = pianoRegion(n.midi, n.velocity ?? 0.7);
-    const file = `${r.folder}/${r.file}`;
+    const name = `${r.folder}/${r.file}`;
     const needed = Math.ceil(
       ((n.durationBeats * 60) / exercise.spec.bpm + 0.5) * 2 ** ((n.midi - r.midi) / 12)
     );
-    files.set(file, Math.max(files.get(file) ?? 0, needed));
+    if (needed > (regions.get(name)?.needed ?? 0)) regions.set(name, { ...r, needed });
   }
-  const queue = [...files];
-  let index = 0;
-  // Avoid simultaneous large FLAC decodes saturating the CPU and memory.
-  await Promise.all(
-    Array.from({ length: Math.min(4, queue.length) }, async () => {
-      while (index < queue.length) {
-        const [file, needed] = queue[index++];
-        while (
-          !buffers.has(file) ||
-          (!complete.has(file) && buffers.get(file)!.duration < needed)
-        ) {
-          if (!loading.has(file))
-            loading.set(
-              file,
-              (async () => {
-                try {
-                  const response = await fetch(`${import.meta.env.BASE_URL}samples/${file}`);
-                  if (!response.ok)
-                    throw new Error(
-                      'Could not load the piano recordings. Check that the local app is running.'
-                    );
-                  const context = Tone.getContext();
-                  const decoded = await context.decodeAudioData(await response.arrayBuffer());
-                  const frames = Math.min(decoded.length, Math.ceil(needed * decoded.sampleRate));
-                  let retained = decoded;
-                  if (frames < decoded.length) {
-                    retained = context.createBuffer(
-                      decoded.numberOfChannels,
-                      frames,
-                      decoded.sampleRate
-                    );
-                    for (let channel = 0; channel < decoded.numberOfChannels; channel++)
-                      retained.copyToChannel(
-                        decoded.getChannelData(channel).subarray(0, frames),
-                        channel
-                      );
-                  } else complete.add(file);
-                  if (!buffers.has(file) || buffers.get(file)!.length < retained.length)
-                    buffers.set(file, retained);
-                } finally {
-                  loading.delete(file);
-                }
-              })()
-            );
-          await loading.get(file);
-        }
-        // Touch the entry so unused older exercises are evicted first.
-        const buffer = buffers.get(file)!;
-        buffers.delete(file);
-        buffers.set(file, buffer);
+  const files = new Map(
+    [...regions].map(([name, r]) => {
+      let path = pianoFile(r.midi, r.layer, r.file, r.needed);
+      // A longer prepared variant also covers short notes; reuse it when switching
+      // exercises instead of downloading another representation of the same sound.
+      if (r.needed <= 2 && (r.layer === 11 || r.layer === 12)) {
+        const longer = pianoFile(r.midi, r.layer, r.file, 5);
+        if (buffers.has(longer) || sampleLoader.has(longer)) path = longer;
       }
+      return [
+        name,
+        {
+          path,
+          needed: r.needed,
+          cacheKey: path.startsWith('bitklavier/') ? `${path}#${r.needed}` : path,
+        },
+      ];
+    })
+  );
+  sampleLoader.select(
+    'piano',
+    [...files.values()].map((f) => f.cacheKey)
+  );
+  await Promise.all(
+    [...files].map(async ([name, { path, cacheKey, needed }]) => {
+      if (!buffers.has(cacheKey)) {
+        const retained = await sampleLoader.load(cacheKey, async (signal) => {
+          const response = await fetch(`${import.meta.env.BASE_URL}samples/${path}`, { signal });
+          if (!response.ok)
+            throw new Error('Could not load the piano recordings. Please try again.');
+          const encoded = await response.arrayBuffer();
+          signal.throwIfAborted();
+          const context = Tone.getContext();
+          const decoded = await context.decodeAudioData(encoded);
+          signal.throwIfAborted();
+          if (!path.startsWith('bitklavier/')) return decoded;
+          // Long custom CLI notes still use originals, retaining only the
+          // necessary prefix rather than keeping an entire long recording.
+          const frames = Math.min(decoded.length, Math.ceil(needed * decoded.sampleRate));
+          if (frames === decoded.length) return decoded;
+          const retained = context.createBuffer(
+            decoded.numberOfChannels,
+            frames,
+            decoded.sampleRate
+          );
+          for (let ch = 0; ch < decoded.numberOfChannels; ch++)
+            retained.copyToChannel(decoded.getChannelData(ch).subarray(0, frames), ch);
+          return retained;
+        });
+        buffers.set(cacheKey, retained);
+      }
+      if (generation !== preloadGeneration) return;
+      prepared.set(name, cacheKey);
+      const buffer = buffers.get(cacheKey)!;
+      buffers.delete(cacheKey);
+      buffers.set(cacheKey, buffer);
     })
   );
   if (generation !== preloadGeneration) return;
+  const required = new Set([...files.values()].map((f) => f.cacheKey));
   let bytes = [...buffers.values()].reduce((sum, b) => sum + b.length * b.numberOfChannels * 4, 0);
   for (const [file, buffer] of buffers) {
     if (bytes <= CACHE_BYTES) break;
-    if (files.has(file)) continue;
+    if (required.has(file)) continue;
     buffers.delete(file);
-    complete.delete(file);
     bytes -= buffer.length * buffer.numberOfChannels * 4;
   }
 }
@@ -105,7 +116,7 @@ export class SteinwayGrand {
   ) {
     const midi = Math.round(69 + 12 * Math.log2(frequency / 440));
     const region = pianoRegion(midi, velocity);
-    const buffer = buffers.get(`${region.folder}/${region.file}`);
+    const buffer = buffers.get(prepared.get(`${region.folder}/${region.file}`) ?? '');
     if (!buffer) throw new Error('The piano samples are not ready.');
     const context = this.destination.context;
     const source = context.createBufferSource();

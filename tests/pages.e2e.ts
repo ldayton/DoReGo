@@ -49,7 +49,7 @@ try {
   const sampleGate = new Promise<void>((resolve) => {
     releaseSamples = resolve;
   });
-  await page.route('**/samples/bitklavier/*.flac', async (route) => {
+  await page.route('**/samples/bitklavier-web-v1/*.flac', async (route) => {
     await sampleGate;
     await route.continue();
   });
@@ -135,7 +135,7 @@ try {
   assert.equal(samples.length, preparedSamples, 'Play must use the preloaded samples');
   await page.locator('#play').click();
   assert.ok(samples.length > 0);
-  assert.ok(samples.every((url) => url.includes('/DoReGo/samples/bitklavier/')));
+  assert.ok(samples.every((url) => url.includes('/DoReGo/samples/bitklavier-web-v1/')));
   await page.locator('#how-button').click();
   const credits = page.locator('#how-dialog a[href*="bitklavier"]');
   const creditsPath = await credits.getAttribute('href');

@@ -1,6 +1,7 @@
 import { holdParam, type LiveVoice } from './tempo-clock';
 import * as Tone from 'tone';
 import { glideOffset, type Exercise } from './music';
+import { sampleLoader } from './sample-loader';
 
 // VSCO uses a different octave naming convention; these keys come from its SFZ.
 export const CELLO_KEYS = [36, 40, 43, 47, 50, 53, 57, 60, 64, 67, 71, 74, 77];
@@ -11,61 +12,47 @@ export function celloKey(midi: number, span: number) {
   );
 }
 const buffers = new Map<number, AudioBuffer>();
-const loading = new Map<number, Promise<void>>();
 export async function preloadCello(exercise: Exercise) {
   const keys = [
     ...new Set(
       exercise.notes.filter((n) => n.glideSpan).map((n) => celloKey(n.midi, n.glideSpan!))
     ),
   ];
-  // Small sustained recordings, loaded once and reused for every round.
-  for (const key of keys) {
-    if (buffers.has(key)) continue;
-    if (!loading.has(key))
-      loading.set(
-        key,
-        (async () => {
-          try {
-            const response = await fetch(
-              `${import.meta.env.BASE_URL}samples/vsco-cello/${key}.flac`
-            );
-            if (!response.ok)
-              throw new Error('Could not load the cello recordings. Please try again.');
-            const context = Tone.getContext();
-            const original = await context.decodeAudioData(await response.arrayBuffer());
-            const buffer = context.createBuffer(
-              original.numberOfChannels,
-              original.length,
-              original.sampleRate
-            );
-            let peak = 0;
-            for (let ch = 0; ch < original.numberOfChannels; ch++)
-              for (const value of original.getChannelData(ch))
-                peak = Math.max(peak, Math.abs(value));
-            for (let ch = 0; ch < original.numberOfChannels; ch++) {
-              const data = buffer.getChannelData(ch),
-                input = original.getChannelData(ch);
-              for (let i = 0; i < data.length; i++)
-                data[i] = input[i] * (0.75 / Math.max(peak, 0.001));
-              // Crossfade into the loop's beginning before wrapping. The attack is
-              // retained, while a slow exercise can sustain without a hard seam.
-              const loopStart = Math.floor(0.8 * buffer.sampleRate);
-              const loopEnd = Math.floor((buffer.duration - 0.5) * buffer.sampleRate);
-              const crossfade = Math.floor(0.15 * buffer.sampleRate);
-              for (let i = 0; i < crossfade; i++) {
-                const blend = (1 - Math.cos((Math.PI * i) / (crossfade - 1))) / 2;
-                data[loopEnd - crossfade + i] =
-                  data[loopEnd - crossfade + i] * (1 - blend) + data[loopStart + i] * blend;
-              }
-            }
-            buffers.set(key, buffer);
-          } finally {
-            loading.delete(key);
+  const path = (key: number) => `vsco-cello/${key}.flac`;
+  sampleLoader.select('cello', keys.map(path));
+  await Promise.all(
+    keys.map(async (key) => {
+      if (buffers.has(key)) return;
+      const buffer = await sampleLoader.load(path(key), async (signal) => {
+        const response = await fetch(`${import.meta.env.BASE_URL}samples/${path(key)}`, { signal });
+        if (!response.ok) throw new Error('Could not load the cello recordings. Please try again.');
+        const encoded = await response.arrayBuffer();
+        signal.throwIfAborted();
+        const buffer = await Tone.getContext().decodeAudioData(encoded);
+        signal.throwIfAborted();
+        // Transform in place before publishing: avoid a second full PCM allocation.
+        let peak = 0;
+        for (let ch = 0; ch < buffer.numberOfChannels; ch++)
+          for (const value of buffer.getChannelData(ch)) peak = Math.max(peak, Math.abs(value));
+        for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+          const data = buffer.getChannelData(ch);
+          for (let i = 0; i < data.length; i++) data[i] *= 0.75 / Math.max(peak, 0.001);
+          // Crossfade into the loop's beginning before wrapping. The attack is
+          // retained, while a slow exercise can sustain without a hard seam.
+          const loopStart = Math.floor(0.8 * buffer.sampleRate);
+          const loopEnd = Math.floor((buffer.duration - 0.5) * buffer.sampleRate);
+          const crossfade = Math.floor(0.15 * buffer.sampleRate);
+          for (let i = 0; i < crossfade; i++) {
+            const blend = (1 - Math.cos((Math.PI * i) / (crossfade - 1))) / 2;
+            data[loopEnd - crossfade + i] =
+              data[loopEnd - crossfade + i] * (1 - blend) + data[loopStart + i] * blend;
           }
-        })()
-      );
-    await loading.get(key);
-  }
+        }
+        return buffer;
+      });
+      buffers.set(key, buffer);
+    })
+  );
 }
 export class CelloGlides {
   private sources = new Set<() => void>();
