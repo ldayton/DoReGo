@@ -87,9 +87,10 @@ try {
   await page.keyboard.press('Space');
   assert.equal(await page.locator('#play').innerText(), 'Pause');
   await page.locator('#play').click();
-  await page.locator('#fullscreen').click();
+  await page.locator('#exercise-title').click();
+  await page.keyboard.press('f');
   await page.waitForFunction(() => !!document.fullscreenElement);
-  await page.locator('#fullscreen').click();
+  await page.keyboard.press('f');
   await page.waitForFunction(() => !document.fullscreenElement);
   await page.locator('#transpose-up').click();
   assert.equal(await page.locator('#low').inputValue(), '61');

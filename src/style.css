@@ -540,24 +540,6 @@ input[type='range']::-moz-range-thumb {
   height: auto;
   aspect-ratio: 16/9;
 }
-.fullscreen-button {
-  position: absolute;
-  bottom: max(8px, calc(5.6% - 16px));
-  right: var(--keyboard-inset, 4%);
-  border: 1px solid #e2e4d9;
-  border-radius: 6px;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  background: #faf9f4dd;
-}
-.fullscreen-button svg {
-  width: 13px;
-  height: 13px;
-}
 .practice-card:fullscreen {
   border: 0;
   border-radius: 0;
@@ -1147,12 +1129,6 @@ footer {
     flex-direction: column;
     gap: 9px;
     line-height: 1.6;
-  }
-  .fullscreen-button {
-    bottom: 7px;
-    right: 7px;
-    width: 24px;
-    height: 24px;
   }
   .session-tag {
     max-width: 137px;

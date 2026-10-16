@@ -9,7 +9,6 @@ import {
   ChevronUp,
   Plus,
   Minus,
-  Maximize2,
   Music2,
   ArrowDownRight,
   X,
@@ -49,7 +48,6 @@ const icons = {
   ChevronUp,
   Plus,
   Minus,
-  Maximize2,
   Music2,
   ArrowDownRight,
   X,
@@ -151,7 +149,7 @@ $('#app').innerHTML = `
       <section class="workspace" aria-label="Practice studio">
         <div class="exercise-heading"><div><h2 id="exercise-title"></h2></div></div>
         <div class="practice-panel">
-        <div class="practice-card" id="practice-card"><canvas id="stage" width="1600" height="900" aria-label="Exercise note and piano keyboard" role="img"></canvas><button class="fullscreen-button" id="fullscreen" aria-label="Enter fullscreen practice" title="Fullscreen practice"><i data-lucide="maximize-2"></i></button><span class="sr-only" id="note-announcement" aria-live="polite"></span></div>
+        <div class="practice-card" id="practice-card"><canvas id="stage" width="1600" height="900" aria-label="Exercise note and piano keyboard" role="img"></canvas><span class="sr-only" id="note-announcement" aria-live="polite"></span></div>
         <div class="exercise-controls" role="group" aria-label="Exercise playback controls">
         <div class="transport"><div class="transport-buttons"><button id="restart" class="icon-button" title="Restart exercise" aria-label="Restart exercise"><i data-lucide="rotate-ccw"></i></button><button id="play" class="play-button"><i data-lucide="play"></i><span>Play</span></button></div><div class="scrubber"><label for="position" class="sr-only">Playback position</label><input id="position" type="range" min="0" max="100" step="0.01" value="0"/><div class="time-labels"><span id="elapsed">0:00</span><span id="duration">0:00</span></div></div><span class="shortcut"><kbd>space</kbd> to play</span></div>
         <div class="tempo-control" id="tempo-control" role="group" aria-label="Tempo"><div class="tempo-label"><label for="bpm">Tempo</label><span><button type="button" id="tempo-down" class="tempo-step" aria-label="Decrease tempo by 5 BPM"><i data-lucide="minus"></i></button><span class="tempo-value"><input name="bpm" form="exercise-form" id="bpm" type="number" min="60" max="240" step="5" aria-label="Tempo in beats per minute"/><span>BPM</span></span><button type="button" id="tempo-up" class="tempo-step" aria-label="Increase tempo by 5 BPM"><i data-lucide="plus"></i></button></span></div>
@@ -616,7 +614,6 @@ $<HTMLInputElement>('#position').addEventListener('input', () => {
   mode = 'paused';
   update();
 });
-$('#fullscreen').addEventListener('click', () => void toggleFullscreen());
 async function toggleFullscreen() {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
