@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { DEFAULT_SPEC, generateExercise, secondsAt } from '../src/music';
 import {
   keyboardRange,
+  practiceRange,
   keyboardView,
   whiteKeyPosition,
   vocalPhraseNotes,
@@ -124,4 +125,38 @@ test('mobile key width is fixed to the widest round, including during every slid
           }
         }
       }
+});
+
+test('iteration ranges exclude chords and include both endpoints of descending glides', () => {
+  for (const [pattern, span] of [
+    ['arpeggio', 7],
+    ['octaveArpeggio', 12],
+    ['fiveNote', 7],
+    ['rossini', 19],
+    ['fifthGlide', 7],
+    ['octaveGlide', 12],
+  ] as const) {
+    for (const direction of ['up', 'down', 'both'] as const) {
+      const e = generateExercise(
+        { ...DEFAULT_SPEC, pattern, direction, low: 52, high: 53 + span, repetitions: 1 },
+        Infinity
+      );
+      for (const round of e.rounds) {
+        const range = practiceRange(e, round);
+        assert.equal(range.high - range.low, span);
+        assert.ok(range.low >= 52 && range.high <= 53 + span);
+        assert.ok(round.midi === range.low || round.midi === range.high);
+      }
+      assert.notDeepEqual(practiceRange(e, e.rounds[0]), practiceRange(e, e.rounds[1]));
+    }
+  }
+  const major = generateExercise({
+    ...DEFAULT_SPEC,
+    pattern: 'major',
+    low: 60,
+    high: 72,
+    key: 0,
+    direction: 'both',
+  });
+  assert.deepEqual(practiceRange(major, major.rounds[0]), { low: 60, high: 72 });
 });

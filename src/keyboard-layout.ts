@@ -10,6 +10,26 @@ export function vocalPhraseNotes(exercise: Exercise, round: PracticeRound) {
     (note) => note.onsetBeat >= round.onsetBeat + introBeats && note.onsetBeat < round.endBeat
   );
 }
+const practiceRanges = new WeakMap<Exercise, Map<number, { low: number; high: number }>>();
+export function practiceRange(exercise: Exercise, round: PracticeRound) {
+  let ranges = practiceRanges.get(exercise);
+  if (!ranges) {
+    ranges = new Map();
+    practiceRanges.set(exercise, ranges);
+  }
+  let range = ranges.get(round.id);
+  if (!range) {
+    const pitches = vocalPhraseNotes(exercise, round).flatMap((note) => [
+      note.midi,
+      note.midi + (note.glideSpan ?? 0),
+    ]);
+    range = pitches.length
+      ? { low: Math.min(...pitches), high: Math.max(...pitches) }
+      : { low: round.midi, high: round.midi };
+    ranges.set(round.id, range);
+  }
+  return range;
+}
 export function keyboardRange(exercise: Exercise, round: PracticeRound, mobile: boolean) {
   const pitches = mobile
     ? vocalPhraseNotes(exercise, round).flatMap((note) => [

@@ -1,3 +1,4 @@
+import { practiceRange } from './keyboard-layout';
 import {
   createIcons,
   Play,
@@ -520,12 +521,16 @@ function update() {
     $('#practice-card').style.setProperty('--keyboard-inset', inset);
   const scene = stateAt(exercise, time);
   const practice = practiceAt(exercise, time);
+  const describeRound = (round: typeof practice.current) => {
+    const range = practiceRange(exercise, round);
+    return `${noteName(round.midi, spec.key)}, range ${noteName(range.low, spec.key)} to ${noteName(range.high, spec.key)}`;
+  };
   const description =
     scene.phase === 'countin'
       ? `Count-in: bar ${Math.floor(scene.beat / 4) + 1} of ${Math.ceil(spec.countIn / 4)}, beat ${scene.count}`
       : scene.phase === 'complete'
         ? 'Exercise complete'
-        : `Current practice note ${noteName(practice.current.midi, spec.key)}. Next ${practice.next ? noteName(practice.next.midi, spec.key) : 'none'}`;
+        : `Current practice note ${describeRound(practice.current)}. Next ${practice.next ? describeRound(practice.next) : 'none'}`;
   canvas.setAttribute(
     'aria-label',
     `${exercise.title ?? PATTERNS[spec.pattern].name}. ${description}`

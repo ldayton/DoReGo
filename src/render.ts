@@ -9,7 +9,7 @@ import {
   type Exercise,
 } from './music';
 
-import { keyboardView, whiteKeyPosition, vocalPhraseNotes } from './keyboard-layout';
+import { keyboardView, whiteKeyPosition, vocalPhraseNotes, practiceRange } from './keyboard-layout';
 
 const C = {
   paper: '#faf9f4',
@@ -255,8 +255,25 @@ export function drawExercise(
       C.ink
     );
     centeredGlyphs(ctx, noteLabel(practice.next), nextX, noteY, nextSize, C.muted);
+    const rangeY = current.top + current.height + (compact ? (mobile ? 36 : 22) : mobile ? 54 : 30);
+    for (const [round, x] of [
+      [practice.current, currentX],
+      [practice.next, nextX],
+    ] as const) {
+      if (!round) continue;
+      const range = practiceRange(exercise, round);
+      text(
+        ctx,
+        `${noteName(range.low, spec.key)} – ${noteName(range.high, spec.key)}`,
+        x,
+        rangeY,
+        compact ? (mobile ? 28 : 14) : mobile ? 44 : 22,
+        C.muted,
+        400
+      );
+    }
     if (!compact) {
-      const progressY = current.top + current.height + (mobile ? 56 : 36);
+      const progressY = rangeY + (mobile ? 42 : 26);
       rounded(ctx, current.left, progressY, current.width, 4, 2, C.line);
       rounded(ctx, current.left, progressY, current.width * practice.progress, 4, 2, C.accent);
       const hint =
