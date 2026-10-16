@@ -13,12 +13,14 @@ import {
   ArrowDownRight,
   X,
   Volume2,
+  Check,
 } from 'lucide';
 import {
   DEFAULT_SPEC,
   isVocalPattern,
   isGlidePattern,
   vocalSpan,
+  directionName,
   PATTERNS,
   generateExercise as generateBoundedExercise,
   noteName,
@@ -51,6 +53,7 @@ const icons = {
   ArrowDownRight,
   X,
   Volume2,
+  Check,
 };
 function iconify() {
   createIcons({ icons, attrs: { 'stroke-width': 1.7 } });
@@ -127,7 +130,7 @@ $('#app').innerHTML = `
           )
             .map((midi) => `<option value="${midi}">${noteName(midi)}</option>`)
             .join('')}</select></label>
-          <fieldset id="direction" class="direction-field"><legend>Direction</legend><div class="direction-toggle"><label><input type="radio" name="direction" value="up" /><i data-lucide="arrow-up-right"></i><span>Ascending</span></label><label><input type="radio" name="direction" value="down" /><i data-lucide="arrow-down-right"></i><span>Descending</span></label></div></fieldset>
+          <fieldset id="direction" class="direction-field"><legend>Direction <span class="direction-hint">Choose one or both</span></legend><div class="direction-toggle"><label><input type="checkbox" name="direction" value="up" /><i class="direction-check" data-lucide="check" aria-hidden="true"></i><i class="direction-arrow" data-lucide="arrow-up-right"></i><span>Ascending</span></label><label><input type="checkbox" name="direction" value="down" /><i class="direction-check" data-lucide="check" aria-hidden="true"></i><i class="direction-arrow" data-lucide="arrow-down-right"></i><span>Descending</span></label></div></fieldset>
           <div id="range-heading" class="range-label"><span>Range</span><span class="range-actions"><button type="button" id="transpose-down" title="Move range and key down one semitone" aria-label="Transpose down one semitone"><i data-lucide="minus"></i></button><button type="button" id="transpose-up" title="Move range and key up one semitone" aria-label="Transpose up one semitone"><i data-lucide="plus"></i></button></span></div>
           <div id="note-range" class="field-row">${(['low', 'high'] as const).map((id) => `<div class="field small-label"><span>${id === 'low' ? 'Lowest' : 'Highest'}</span><div class="desktop-note"><input id="${id}-spin" type="text" role="combobox" aria-label="${id === 'low' ? 'Lowest' : 'Highest'} note" autocomplete="off" spellcheck="false" maxlength="5" /><button type="button" id="${id}-choose" aria-label="Choose ${id === 'low' ? 'lowest' : 'highest'} note"><i data-lucide="chevron-down"></i></button></div><div class="note-spinner mobile-note"><div class="note-wheel-selection" aria-hidden="true"></div><div id="${id}-wheel" class="note-wheel" role="spinbutton" tabindex="0" aria-label="${id === 'low' ? 'Lowest' : 'Highest'} note" aria-valuemin="24" aria-valuemax="96" aria-description="Swipe or scroll to choose a note."></div></div><input type="hidden" name="${id}" id="${id}" /></div>`).join('')}</div>
           <details class="more-settings"><summary>More options <i data-lucide="chevron-down"></i></summary><div class="advanced"><label id="starting-chords-field" class="toggle-row" hidden><span>Starting-note chords</span><input name="startingChords" id="startingChords" type="checkbox" role="switch" checked /></label>
@@ -256,12 +259,20 @@ for (const id of ['low', 'high']) {
 }
 function populate() {
   for (const [key, value] of Object.entries(spec)) {
+    if (key === 'direction') continue;
     const element = form.elements.namedItem(key) as HTMLInputElement | HTMLSelectElement | null;
     if (!element) continue;
     if (element instanceof HTMLInputElement && element.type === 'checkbox')
       element.checked = !!value;
     else element.value = value === null ? '' : String(value);
   }
+  document.querySelectorAll<HTMLInputElement>('input[name="direction"]').forEach((input) => {
+    input.checked = spec.direction === 'both' || spec.direction === input.value;
+    input.setAttribute(
+      'aria-description',
+      'Choose one or both directions. At least one must remain selected.'
+    );
+  });
   syncSpinners();
   syncCounts();
   countInSelect.sync();
@@ -269,8 +280,8 @@ function populate() {
   $<HTMLInputElement>('#tempo-slider').value = String(spec.bpm);
   const vocal = isVocalPattern(spec.pattern);
   const direction = $<HTMLFieldSetElement>('#direction');
-  direction.hidden = spec.pattern === 'rossini' || isGlidePattern(spec.pattern);
-  direction.disabled = spec.pattern === 'rossini' || isGlidePattern(spec.pattern);
+  direction.hidden = spec.pattern === 'rossini';
+  direction.disabled = spec.pattern === 'rossini';
   for (const id of ['key']) {
     const element = $<HTMLSelectElement>(`#${id}`);
     element.disabled = vocal;
@@ -290,6 +301,11 @@ function populate() {
 function readForm(): ExerciseSpec {
   const result = { ...spec, ...Object.fromEntries(new FormData(form)) } as Record<string, unknown>;
   for (const key of numeric) result[key] = Number(result[key]);
+  const directions = [
+    ...document.querySelectorAll<HTMLInputElement>('input[name="direction"]:checked'),
+  ];
+  if (!directions.length) throw new Error('Select at least one direction.');
+  result.direction = directions.length === 2 ? 'both' : directions[0].value;
   if (
     isVocalPattern(result.pattern as ExerciseSpec['pattern']) &&
     result.pattern !== spec.pattern &&
@@ -413,6 +429,12 @@ function changeVolume() {
 }
 $<HTMLInputElement>('#volume').addEventListener('input', changeVolume);
 $<HTMLInputElement>('#volume').addEventListener('change', changeVolume);
+$('#direction').addEventListener('change', (event) => {
+  if (!document.querySelector('input[name="direction"]:checked')) {
+    (event.target as HTMLInputElement).checked = true;
+    event.stopPropagation();
+  }
+});
 form.addEventListener('change', refresh);
 $('#tempo-control').addEventListener('change', () => {
   changeTempo();
@@ -513,8 +535,7 @@ function update() {
     announced = description;
   }
   $('#exercise-title').textContent =
-    exercise.title ??
-    `${PATTERNS[spec.pattern].name} (${spec.direction === 'down' ? 'Descending' : 'Ascending'})`;
+    exercise.title ?? `${PATTERNS[spec.pattern].name} (${directionName(spec.direction)})`;
   const button = $('#play');
   const label = pianoWarming
     ? 'Loading...'

@@ -45,6 +45,12 @@ export function exportMidi(exercise: Exercise): Uint8Array {
           ticks: Math.round((n.onsetBeat + (n.durationBeats * i) / steps) * ppq),
           value: Math.round((glideOffset(i / steps, n.glideSpan) / 12) * 8191),
         });
+      // Reset after note-off, so a one-way descent never audibly bends back up.
+      if (n.glideSpan < 0)
+        cello!.addPitchBend({
+          ticks: Math.round((n.onsetBeat + n.durationBeats) * ppq) + 1,
+          value: 0,
+        });
     }
   }
   // A timed all-notes-off preserves the full final slot in MIDI players, even

@@ -28,7 +28,7 @@ No account, API key, microphone access, or hosted service is required. CC BY 4.0
 
 ## Practice
 
-- Seven exercises: **Arpeggio & Scale** (default: E3–E5, 150 BPM), **Octave Arpeggio**, **Rossini Scale**, **Five-Note Scale**, **Major Scale**, **Fifth Glide**, and **Octave Glide**. Rossini and the glides have fixed up-and-back phrases; the other exercises offer **Ascending** and **Descending** directions.
+- Seven exercises: **Arpeggio & Scale** (default: E3–E5, 150 BPM), **Octave Arpeggio**, **Rossini Scale**, **Five-Note Scale**, **Major Scale**, **Fifth Glide**, and **Octave Glide**. Rossini has a fixed up-and-back phrase; the other six exercises let you select **Ascending**, **Descending**, or both. Both plays ascending first, then descending.
 - Choose your lowest/highest vocal notes and direction. Major Scale instead uses a single Key selector for the starting note, including its octave; the other exercises move by semitone through your range.
 - Desktop note fields accept typed names such as E3 or F#4 and open a note grid organized by octave. Mobile uses snapping swipe wheels. Arrow keys move by semitone and Page Up/Down by octave.
 - Transpose the key and range together with the minus/plus buttons.
@@ -99,7 +99,7 @@ All runtime dependency versions are pinned by `package-lock.json`. The app does 
 
 **Rossini Scale** uses the fixed sequence 1–3–5–8–10–12–11–9–7–5–4–2–1, with regular beats and a held final note. It shifts upward by semitone between rounds, fitting the entire melody within the chosen range. It needs at least 19 semitones; selecting it expands a smaller range to fit. Direction is hidden and ignored for this exercise. Starting chords, repeats, count-in, rests, and tempo remain available.
 
-**Major Scale** uses Key as its starting note and generates one octave ascending or descending, without lowest/highest controls. Rounds repeat that scale, with the configured rest between rounds.
+**Major Scale** uses Key as its starting note and generates one octave ascending, descending, or up and back when both directions are selected, without lowest/highest controls. Rounds repeat that scale, with the configured rest between rounds.
 
 All exercises use the tempo, fixed exercise timing, natural articulation, count-in, rounds, volume, and export settings. Older saved exercise types are mapped to Arpeggio & Scale or Major Scale; the former combined up-and-down direction maps to ascending.
 
@@ -113,7 +113,7 @@ Rebuild the assets with `python3 scripts/setup-bitklavier.py` (requires FFmpeg; 
 
 ### Cello glides
 
-Fifth Glide and Octave Glide use CC0 VSCO 2 Community Edition cello-section recordings. Each round begins with the usual six-beat piano chord introduction (when starting chords are enabled), then a fourteen-beat continuous slide: hold two beats, rise four, hold two, descend four, hold two. Rounds move up by semitone while keeping the complete glide inside the chosen vocal range. Direction is fixed for glides; the starting-chord option works as it does for the other vocal exercises.
+Fifth Glide and Octave Glide use CC0 VSCO 2 Community Edition cello-section recordings. Each round begins with the usual six-beat piano chord introduction (when starting chords are enabled), then a continuous slide. Ascending phrases take fourteen beats: hold two, rise four, hold two, return four, hold two. Descending phrases take eight beats: hold two, descend four, hold two. Rounds move up by semitone while keeping the complete glide inside the chosen vocal range. Ascending glides start low, rise and return; descending glides start high, fall, hold the lower note, and finish. Selecting both runs the ascending pass then the descending pass through the range, without repeating the turnaround key. The starting-chord option works as it does for the other vocal exercises.
 
 One sustained recording, chosen nearest the glide's pitch midpoint, plays throughout the phrase with smooth audio-clock pitch automation. Samples load only when needed; crossfaded sustain loops support slower tempos, and pause/seek resumes at the correct pitch and sample position. The keyboard follows the sounding pitch with a moving marker; Current/Next still show round targets. Video uses the same cello playback; MIDI exports a separate cello track with pitch bends and a declared octave bend range.
 

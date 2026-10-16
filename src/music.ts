@@ -49,7 +49,14 @@ export function vocalSpan(pattern: Pattern) {
       ? 12
       : 7;
 }
-export type Direction = 'up' | 'down';
+export type Direction = 'up' | 'down' | 'both';
+export function directionName(direction: Direction) {
+  return direction === 'both'
+    ? 'Ascending & Descending'
+    : direction === 'down'
+      ? 'Descending'
+      : 'Ascending';
+}
 export type Voice = 'bitklavier';
 export interface ExerciseSpec {
   startingChords?: boolean;
@@ -176,16 +183,13 @@ export function validateSpec(input: unknown): ExerciseSpec {
   };
   if (typeof s.pattern !== 'string' || !Object.hasOwn(PATTERNS, s.pattern))
     throw new Error('Choose a supported pattern.');
-  if (!['up', 'down'].includes(String(s.direction))) throw new Error('Choose a direction.');
+  if (!['up', 'down', 'both'].includes(String(s.direction))) throw new Error('Choose a direction.');
   if (s.voice !== 'bitklavier') throw new Error('Only bitKlavier is supported.');
   for (const key of ['metronome', 'solfege'])
     if (typeof s[key] !== 'boolean') throw new Error(`Invalid ${key}.`);
   const result: ExerciseSpec = {
     pattern: s.pattern as Pattern,
-    direction:
-      s.pattern === 'rossini' || isGlidePattern(s.pattern as Pattern)
-        ? 'up'
-        : (s.direction as Direction),
+    direction: s.pattern === 'rossini' ? 'up' : (s.direction as Direction),
     voice: s.voice as Voice,
     key: num('key', 0, 11, true),
     low: num('low', 24, 96, true),
@@ -209,6 +213,8 @@ export function validateSpec(input: unknown): ExerciseSpec {
 }
 export function generateExercise(input: unknown, maxDuration = 600): Exercise {
   const spec = validateSpec(input);
+  if (spec.direction === 'both' && isVocalPattern(spec.pattern))
+    return generateBidirectionalExercise(spec, maxDuration);
   if (isGlidePattern(spec.pattern)) return generateGlideExercise(spec, maxDuration);
   if (isVocalPattern(spec.pattern)) return generateVocalExercise(spec, maxDuration);
   const intervals: readonly number[] = PATTERNS[spec.pattern].intervals;
@@ -219,6 +225,7 @@ export function generateExercise(input: unknown, maxDuration = 600): Exercise {
     throw new Error('This range has no notes in the selected key. Widen the range.');
   let phrase = [...pitches];
   if (spec.direction === 'down') phrase.reverse();
+  else if (spec.direction === 'both') phrase.push(...pitches.slice(0, -1).reverse());
   const phraseBeats = phrase.length * spec.noteBeats;
   const notes: NoteEvent[] = [];
   const rounds: PracticeRound[] = [];
@@ -253,11 +260,13 @@ const GLIDE_HOLD_BEATS = 2;
 const GLIDE_SLIDE_BEATS = 4;
 export const GLIDE_BEATS = 3 * GLIDE_HOLD_BEATS + 2 * GLIDE_SLIDE_BEATS;
 export function glideOffset(progress: number, span: number) {
-  const beat = Math.max(0, Math.min(1, progress)) * GLIDE_BEATS;
+  const beat =
+    Math.max(0, Math.min(1, progress)) *
+    (span < 0 ? 2 * GLIDE_HOLD_BEATS + GLIDE_SLIDE_BEATS : GLIDE_BEATS);
   const ease = (t: number) => (1 - Math.cos(Math.PI * t)) / 2;
   if (beat < 2) return 0;
   if (beat < 6) return span * ease((beat - 2) / GLIDE_SLIDE_BEATS);
-  if (beat < 8) return span;
+  if (span < 0 || beat < 8) return span;
   if (beat < 12) return span * (1 - ease((beat - 8) / GLIDE_SLIDE_BEATS));
   return 0;
 }
@@ -291,9 +300,13 @@ function generateGlideExercise(spec: ExerciseSpec, maxDuration: number): Exercis
     throw new Error(
       `${PATTERNS[spec.pattern].name} needs a range of at least ${span === 12 ? 'an octave' : 'a perfect fifth'}.`
     );
-  const roots = Array.from({ length: spec.high - spec.low - span + 1 }, (_, i) => spec.low + i);
+  const descending = spec.direction === 'down';
+  const roots = Array.from({ length: spec.high - spec.low - span + 1 }, (_, i) =>
+    descending ? spec.high - i : spec.low + i
+  );
   const cueBeats = spec.startingChords ? 6 * spec.noteBeats : 0;
-  const glideBeats = GLIDE_BEATS * spec.noteBeats;
+  const glideBeats =
+    (descending ? 2 * GLIDE_HOLD_BEATS + GLIDE_SLIDE_BEATS : GLIDE_BEATS) * spec.noteBeats;
   const phraseLength = cueBeats + glideBeats;
   const phraseBeats = roots.length * phraseLength + (roots.length - 1) * spec.restBeats;
   const totalBeats =
@@ -312,16 +325,16 @@ function generateGlideExercise(spec: ExerciseSpec, maxDuration: number): Exercis
       rounds.push({
         id: rounds.length,
         midi: root,
-        degree: 0,
+        degree: descending ? span % 12 : 0,
         onsetBeat: beat,
         endBeat: beat + phraseLength,
       });
       if (spec.startingChords)
         addStartingChords(
-          root,
+          descending ? root - span : root,
           beat,
           spec.noteBeats,
-          false,
+          descending,
           (midi, onsetBeat, length) => {
             const note: NoteEvent = {
               id: notes.length,
@@ -330,7 +343,7 @@ function generateGlideExercise(spec: ExerciseSpec, maxDuration: number): Exercis
               durationBeats: length * spec.gate,
               slotBeats: length,
               repetition: rep + 1,
-              degree: (midi - root + 120) % 12,
+              degree: (midi - (descending ? root - span : root) + 120) % 12,
               velocity: 0.65,
             };
             notes.push(note);
@@ -341,13 +354,13 @@ function generateGlideExercise(spec: ExerciseSpec, maxDuration: number): Exercis
       notes.push({
         id: notes.length,
         midi: root,
-        degree: 0,
+        degree: descending ? span % 12 : 0,
         onsetBeat: beat + cueBeats,
         durationBeats: glideBeats,
         slotBeats: glideBeats,
         repetition: rep + 1,
         velocity: 0.8,
-        glideSpan: span,
+        glideSpan: descending ? -span : span,
       });
       guideNotes.push(notes[notes.length - 1]);
     });
@@ -361,7 +374,63 @@ function generateGlideExercise(spec: ExerciseSpec, maxDuration: number): Exercis
     pitches: [
       ...new Set(notes.flatMap((note) => [note.midi, note.midi + (note.glideSpan ?? 0)])),
     ].sort((a, b) => a - b),
-    title: PATTERNS[spec.pattern].name,
+    title: `${PATTERNS[spec.pattern].name} (${directionName(spec.direction)})`,
+  };
+}
+function generateBidirectionalExercise(spec: ExerciseSpec, maxDuration: number): Exercise {
+  const generateLeg = isGlidePattern(spec.pattern) ? generateGlideExercise : generateVocalExercise;
+  const up = generateLeg({ ...spec, direction: 'up', countIn: 0, repetitions: 1 }, Infinity);
+  const down = generateLeg({ ...spec, direction: 'down', countIn: 0, repetitions: 1 }, Infinity);
+  // The top key has just been practiced on the ascending leg. Start the
+  // descending leg one key lower, except when the range permits only one key.
+  const downStart = down.rounds.length > 1 ? down.rounds[1].onsetBeat : 0;
+  const phraseBeats = up.totalBeats + spec.restBeats + down.totalBeats - downStart;
+  const totalBeats =
+    spec.countIn + spec.repetitions * phraseBeats + (spec.repetitions - 1) * spec.restBeats;
+  if (secondsAt(totalBeats, spec.bpm) > maxDuration)
+    throw new Error(
+      'Keep exercises under 10 minutes. Reduce repetitions, range, rests, or note length.'
+    );
+  const notes: NoteEvent[] = [],
+    guideNotes: NoteEvent[] = [],
+    rounds: PracticeRound[] = [];
+  for (let rep = 0; rep < spec.repetitions; rep++) {
+    const start = spec.countIn + rep * (phraseBeats + spec.restBeats);
+    for (const [leg, trim, shift] of [
+      [up, 0, start],
+      [down, downStart, start + up.totalBeats + spec.restBeats - downStart],
+    ] as const) {
+      const guide = new Set(leg.guideNotes!.map((n) => n.id));
+      for (const note of leg.notes) {
+        if (note.onsetBeat < trim) continue;
+        const copy = {
+          ...note,
+          id: notes.length,
+          onsetBeat: note.onsetBeat + shift,
+          repetition: rep + 1,
+        };
+        notes.push(copy);
+        if (guide.has(note.id)) guideNotes.push(copy);
+      }
+      for (const round of leg.rounds)
+        if (round.onsetBeat >= trim)
+          rounds.push({
+            ...round,
+            id: rounds.length,
+            onsetBeat: round.onsetBeat + shift,
+            endBeat: round.endBeat + shift,
+          });
+    }
+  }
+  return {
+    spec,
+    notes,
+    guideNotes,
+    rounds,
+    totalBeats,
+    phraseBeats,
+    pitches: [...new Set(notes.map((n) => n.midi))].sort((a, b) => a - b),
+    title: `${PATTERNS[spec.pattern].name} (${directionName('both')})`,
   };
 }
 function generateVocalExercise(spec: ExerciseSpec, maxDuration: number): Exercise {

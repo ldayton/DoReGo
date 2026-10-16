@@ -205,7 +205,8 @@ try {
   const withChords = await page.locator('#exercise-summary').textContent();
   await page.locator('#startingChords').uncheck();
   assert.notEqual(await page.locator('#exercise-summary').textContent(), withChords);
-  await page.getByRole('radio', { name: 'Descending', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Descending', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Ascending', exact: true }).uncheck();
   assert.equal(
     await page.locator('#exercise-title').textContent(),
     'Arpeggio & Scale (Descending)'

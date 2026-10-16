@@ -1260,7 +1260,7 @@ main {
   outline: 3px solid #95ad62;
   outline-offset: 3px;
 }
-.direction-toggle input[type='radio'] {
+.direction-toggle input[type='checkbox'] {
   position: absolute;
   opacity: 0;
   width: 1px;
@@ -1720,4 +1720,35 @@ main {
   .exercise-controls .transport-buttons {
     gap: 8px;
   }
+}
+
+.direction-hint {
+  margin-left: 6px;
+  color: #79816f;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.direction-toggle label:not(:has(input:checked)):not(:has(input:disabled)) {
+  color: #53614f;
+  border-style: solid;
+}
+.direction-toggle label:not(:has(input:checked)):not(:has(input:disabled)):hover {
+  background: #edf2df;
+  border-color: #95ad62;
+}
+.direction-toggle .direction-check {
+  display: none;
+}
+.direction-toggle label:has(input:checked) .direction-check {
+  display: block;
+}
+.direction-toggle label:has(input:checked) .direction-arrow {
+  display: none;
+}
+.direction-toggle label:has(input:disabled) {
+  background: #f0f1ec;
+  border-color: #dfe2d7;
+  color: #899080;
+  cursor: not-allowed;
 }

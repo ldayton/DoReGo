@@ -31,7 +31,6 @@ test('glides sweep continuously within the chosen range, with the usual chord in
       exercise.rounds.map((r) => r.midi),
       [52, 53, 52, 53]
     );
-    assert.deepEqual(generateExercise({ ...spec, direction: 'down' }), exercise);
     assert.equal(exercise.notes.length, 32);
     const reference = generateExercise({ ...spec, pattern: 'arpeggio' });
     assert.deepEqual(exercise.notes.slice(0, 7), reference.notes.slice(0, 7));
@@ -80,4 +79,54 @@ test('glide pitch has smooth endpoints and no overshoot', () => {
     assert.ok(glideOffset(i / 1100, 12) >= 0 && glideOffset(i / 1100, 12) <= 12);
   for (const t of [0, 2 / 14, 6 / 14, 8 / 14, 12 / 14, 1])
     assert.ok(Math.abs(glideOffset(t + 1e-6, 12) - glideOffset(t - 1e-6, 12)) < 1e-6);
+});
+
+test('descending glides start high and finish low without returning up', () => {
+  for (const [pattern, span] of [
+    ['fifthGlide', 7],
+    ['octaveGlide', 12],
+  ] as const) {
+    const spec = {
+      ...DEFAULT_SPEC,
+      pattern,
+      direction: 'down',
+      low: 52,
+      high: 53 + span,
+      countIn: 8,
+      repetitions: 2,
+    };
+    const e = generateExercise(spec);
+    assert.deepEqual(
+      e.rounds.map((r) => r.midi),
+      [53 + span, 52 + span, 53 + span, 52 + span]
+    );
+    const glides = e.notes.filter((n) => n.glideSpan);
+    assert.equal(glides.length, 4);
+    for (const n of glides) {
+      assert.equal(n.glideSpan, -span);
+      assert.equal(notePitchAt(n, n.onsetBeat), n.midi);
+      assert.equal(n.slotBeats, 8);
+      assert.equal(notePitchAt(n, n.onsetBeat + n.slotBeats * 0.75), n.midi - span);
+      assert.equal(notePitchAt(n, n.onsetBeat + n.slotBeats), n.midi - span);
+      let previous = n.midi;
+      for (let i = 0; i <= 100; i++) {
+        const pitch = notePitchAt(n, n.onsetBeat + (n.slotBeats * i) / 100);
+        assert.ok(pitch <= previous + 1e-9);
+        previous = pitch;
+      }
+      const range = keyboardRange(e, e.rounds[glides.indexOf(n)], true);
+      assert.ok(range.low <= n.midi - span && range.high >= n.midi);
+    }
+    const reference = generateExercise({
+      ...spec,
+      pattern: span === 12 ? 'octaveArpeggio' : 'fiveNote',
+    });
+    assert.deepEqual(e.notes.slice(0, 8), reference.notes.slice(0, 8));
+    const midi = new Midi(exportMidi(e));
+    const cello = midi.tracks.find((t) => t.name === 'Cello glides')!;
+    assert.ok(Math.abs(Math.min(...cello.pitchBends.map((p) => p.value)) + span / 12) < 0.001);
+    assert.ok(cello.pitchBends.every((p) => p.value <= 0));
+    assert.equal(cello.pitchBends.at(-1)!.value, 0);
+    assert.match(e.title!, /Descending/);
+  }
 });

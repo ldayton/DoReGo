@@ -335,9 +335,9 @@ export function drawExercise(
     const y = y0 - (mobile ? 36 : 24);
     rounded(
       ctx,
-      xAt(glide.midi),
+      Math.min(xAt(glide.midi), xAt(glide.midi + glide.glideSpan!)),
       y - 2,
-      xAt(glide.midi + glide.glideSpan!) - xAt(glide.midi),
+      Math.abs(xAt(glide.midi + glide.glideSpan!) - xAt(glide.midi)),
       4,
       2,
       C.line

@@ -214,9 +214,15 @@ try {
     assert.ok(await page.locator('#direction').isVisible());
     assert.ok(await page.locator('#key').isDisabled());
     await page.locator('input[name="direction"][value="down"]').check();
+    assert.equal(
+      await page.locator('#exercise-title').textContent(),
+      `${label} (Ascending & Descending)`
+    );
+    await page.locator('input[name="direction"][value="up"]').uncheck();
     assert.equal(await page.locator('#exercise-title').textContent(), `${label} (Descending)`);
     assert.ok(await page.locator('#form-error').isHidden());
     await page.locator('input[name="direction"][value="up"]').check();
+    await page.locator('input[name="direction"][value="down"]').uncheck();
   }
   await page.reload();
   assert.equal(await page.locator('#pattern').inputValue(), 'octaveArpeggio');
@@ -231,9 +237,18 @@ try {
   ]);
   for (const pattern of ['fifthGlide', 'octaveGlide']) {
     await page.locator('#pattern').selectOption(pattern);
-    assert.ok(await page.locator('#direction').isHidden());
+    assert.ok(await page.locator('#direction').isVisible());
     assert.equal(await page.locator('#starting-chords-field').getAttribute('hidden'), null);
     await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>('#play')?.disabled);
+    await page.locator('input[name="direction"][value="down"]').check();
+    assert.match(
+      (await page.locator('#exercise-title').textContent()) ?? '',
+      /Ascending & Descending/
+    );
+    await page.locator('input[name="direction"][value="up"]').uncheck();
+    assert.match((await page.locator('#exercise-title').textContent()) ?? '', /Descending/);
+    await page.locator('input[name="direction"][value="up"]').check();
+    await page.locator('input[name="direction"][value="down"]').uncheck();
     assert.ok(await page.locator('#form-error').isHidden());
   }
   assert.ok(samples.some((url) => url.includes('/DoReGo/samples/vsco-cello/')));
@@ -243,6 +258,9 @@ try {
   assert.ok(await page.locator('#key').isVisible());
   for (const direction of ['up', 'down']) {
     await page.locator(`input[name="direction"][value="${direction}"]`).check();
+    await page
+      .locator(`input[name="direction"][value="${direction === 'up' ? 'down' : 'up'}"]`)
+      .uncheck();
     await page.locator('#key').selectOption('62');
     assert.equal(await page.locator('#low').inputValue(), direction === 'up' ? '62' : '50');
     assert.equal(await page.locator('#high').inputValue(), direction === 'up' ? '74' : '62');
@@ -252,6 +270,23 @@ try {
   assert.ok(await page.locator('#note-range').isHidden());
   await page.locator('#pattern').selectOption('arpeggio');
   assert.ok(await page.locator('#note-range').isVisible());
+  await page.locator('input[name="direction"][value="up"]').check();
+  assert.match(
+    (await page.locator('#exercise-title').textContent()) ?? '',
+    /Ascending & Descending/
+  );
+  await page.reload();
+  assert.equal(await page.locator('input[name="direction"]:checked').count(), 2);
+  assert.equal(
+    await page.evaluate(() => JSON.parse(localStorage.getItem('dorego.current')!).direction),
+    'both'
+  );
+  await page.locator('input[name="direction"][value="down"]').uncheck();
+  // The final selected direction cannot be cleared.
+  assert.ok(await page.locator('input[name="direction"][value="up"]').isEnabled());
+  await page.locator('input[name="direction"][value="up"]').click();
+  assert.ok(await page.locator('input[name="direction"][value="up"]').isChecked());
+  assert.ok(await page.locator('input[name="direction"][value="down"]').isEnabled());
   // A phone gets a taller, fully fitted keyboard; desktop keeps the video layout.
   await page.setViewportSize({ width: 320, height: 720 });
   await page.waitForFunction(() => {
