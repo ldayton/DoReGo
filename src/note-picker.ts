@@ -19,6 +19,7 @@ export class NotePicker {
     private commit: (midi: number) => void
   ) {
     const title = input.getAttribute('aria-label')!;
+    input.readOnly = true;
     this.popover = document.createElement('div');
     this.popover.id = `${input.id}-picker`;
     this.popover.className = 'note-picker';
@@ -44,7 +45,7 @@ export class NotePicker {
       element.setAttribute('aria-expanded', 'false');
       element.setAttribute('aria-haspopup', 'dialog');
     }
-    button.addEventListener('click', () => this.toggle());
+    input.parentElement!.addEventListener('click', () => this.toggle());
     this.popover.addEventListener('toggle', () => {
       const open = this.popover.matches(':popover-open');
       input.setAttribute('aria-expanded', String(open));
@@ -74,23 +75,15 @@ export class NotePicker {
       next.tabIndex = 0;
       next.focus();
     });
-    input.addEventListener('change', (event) => {
-      event.stopPropagation();
-      this.enter();
-    });
-    input.addEventListener('input', () => {
-      input.setCustomValidity('');
-      input.removeAttribute('aria-invalid');
-    });
     input.addEventListener('keydown', (event) => {
       if ((event.altKey && event.key === 'ArrowDown') || event.key === 'F4') {
         event.preventDefault();
         this.toggle();
         return;
       }
-      if (event.key === 'Enter') {
+      if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        this.enter();
+        this.toggle();
         return;
       }
       if (event.key === 'Escape') {
@@ -111,17 +104,6 @@ export class NotePicker {
       }
     });
     window.addEventListener('resize', () => this.close());
-  }
-  private enter() {
-    const midi = parseNote(this.input.value);
-    if (midi === null) {
-      this.input.setAttribute('aria-invalid', 'true');
-      this.input.setCustomValidity('Enter a note from C1 to C7, such as E3 or F#4.');
-      this.input.reportValidity();
-      return;
-    }
-    if (midi === this.value) this.setValue(midi);
-    else this.commit(midi);
   }
   private toggle() {
     if (this.popover.matches(':popover-open')) {

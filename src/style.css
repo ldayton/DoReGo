@@ -1348,6 +1348,7 @@ main {
   background: #fffefa;
 }
 .field .desktop-note input {
+  cursor: pointer;
   width: 100%;
   min-width: 0;
   border: 0;

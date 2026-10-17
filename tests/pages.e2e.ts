@@ -94,8 +94,12 @@ try {
   await page.locator('#low-spin').press('ArrowDown');
   assert.equal(await page.locator('#low').inputValue(), '52');
   assert.ok(await page.locator('#low-wheel').isHidden());
-  await page.locator('#low-spin').fill('F#3');
-  await page.locator('#low-spin').press('Enter');
+  assert.equal(await page.locator('#low-spin').getAttribute('readonly'), '');
+  await page.locator('#low-spin').click();
+  await page
+    .getByRole('dialog', { name: 'Choose lowest note' })
+    .getByRole('button', { name: 'F♯3', exact: true })
+    .click();
   assert.equal(await page.locator('#low').inputValue(), '54');
   await page.locator('#low-choose').click();
   await page
@@ -250,14 +254,20 @@ try {
   }
   assert.ok(samples.some((url) => url.includes('/DoReGo/samples/vsco-cello/')));
   await page.locator('input[name="progression"][value="down"]').check();
-  await page.locator('#high-spin').fill('E4');
   await page.locator('#high-spin').press('Enter');
+  await page
+    .getByRole('dialog', { name: 'Choose highest note' })
+    .getByRole('button', { name: 'E4', exact: true })
+    .click();
   assert.ok(
     await page.locator('#progression').isHidden(),
     'One-key octave range hides progression'
   );
-  await page.locator('#high-spin').fill('F4');
   await page.locator('#high-spin').press('Enter');
+  await page
+    .getByRole('dialog', { name: 'Choose highest note' })
+    .getByRole('button', { name: 'F4', exact: true })
+    .click();
   assert.ok(await page.locator('#progression').isVisible());
   assert.ok(await page.locator('input[name="progression"][value="down"]').isChecked());
   await page.setViewportSize({ width: 390, height: 844 });
