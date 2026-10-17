@@ -95,7 +95,7 @@ All runtime dependency versions are pinned by `package-lock.json`. The app does 
 
 **Within each round** controls the phrase, with a small preview of its actual contour. Arpeggio & Scale, Octave Arpeggio and Five-Note Scale offer **Rising first** and **Falling first**; these phrases already return to their starting note. Glides offer **Up**, **Down** (eight beats each, no return), or **Up & back** (fourteen beats). Rossini has a fixed contour, so this control is hidden.
 
-**Between rounds** independently chooses **Higher**, **Lower**, or **Higher then lower**, one semitone at a time. The starting-note preview reflects the actual practice targets, including phrases that start high. The same phrase, rhythm and starting chords are retained throughout the sweep. The turnaround key is played once; a one-key range plays one round per repeat and hides the between-round controls while remembering the selection. Rossini supports all three progressions while keeping its fixed melody.
+**Between rounds** independently chooses **Rising**, **Falling**, or **Rising then falling**, with diagonal contour icons, one semitone at a time. The starting-note preview reflects the actual practice targets, including phrases that start high. The same phrase, rhythm and starting chords are retained throughout the sweep. The turnaround key is played once; a one-key range plays one round per repeat and hides the between-round controls while remembering the selection. Rossini supports all three progressions while keeping its fixed melody.
 
 **Major Scale** uses Key as its starting note and generates one octave **Up**, **Down**, or **Up then down**. It repeats on that key, so range and between-round progression controls are hidden.
 

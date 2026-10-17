@@ -1738,12 +1738,14 @@ main {
   height: 1px;
   margin: 0;
 }
-#phrase-options label {
+#phrase-options label,
+.progression-toggle label {
   flex-direction: column;
   gap: 6px;
   padding-block: 10px;
 }
-#phrase-options .phrase-contour {
+#phrase-options .phrase-contour,
+.progression-toggle .progression-contour {
   width: 56px;
   height: 22px;
   fill: none;

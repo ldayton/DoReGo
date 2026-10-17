@@ -152,14 +152,14 @@ $('#app').innerHTML = `
           <div id="note-range" class="field-row">${(['low', 'high'] as const).map((id) => `<div class="field small-label"><span>${id === 'low' ? 'Lowest' : 'Highest'}</span><div class="desktop-note"><input id="${id}-spin" type="text" role="combobox" aria-label="${id === 'low' ? 'Lowest' : 'Highest'} note" autocomplete="off" spellcheck="false" maxlength="5" /><button type="button" id="${id}-choose" aria-label="Choose ${id === 'low' ? 'lowest' : 'highest'} note"><i data-lucide="chevron-down"></i></button></div><div class="note-spinner mobile-note"><div class="note-wheel-selection" aria-hidden="true"></div><div id="${id}-wheel" class="note-wheel" role="spinbutton" tabindex="0" aria-label="${id === 'low' ? 'Lowest' : 'Highest'} note" aria-valuemin="24" aria-valuemax="96" aria-description="Swipe or scroll to choose a note."></div></div><input type="hidden" name="${id}" id="${id}" /></div>`).join('')}</div>
           <fieldset id="progression" class="direction-field progression-field"><legend>Between rounds</legend><div class="direction-toggle progression-toggle">${(
             [
-              ['up', 'Higher'],
-              ['down', 'Lower'],
-              ['both', 'Higher then lower'],
+              ['up', 'Rising', 'M4 21L60 3'],
+              ['down', 'Falling', 'M4 3L60 21'],
+              ['both', 'Rising then falling', 'M4 21L32 3L60 21'],
             ] as const
           )
             .map(
-              ([value, label]) =>
-                `<label><input type="radio" name="progression" value="${value}" /><span>${label}</span></label>`
+              ([value, label, path]) =>
+                `<label><input type="radio" name="progression" value="${value}" /><svg class="progression-contour" viewBox="0 0 64 24" aria-hidden="true"><path d="${path}" /></svg><span>${label}</span></label>`
             )
             .join(
               ''
