@@ -132,7 +132,10 @@ export function setupOffline() {
 
   void (async () => {
     try {
-      const registration = await navigator.serviceWorker.register(`${base}sw.js`, { scope: base });
+      const registration = await navigator.serviceWorker.register(`${base}sw.js`, {
+        scope: base,
+        updateViaCache: 'none',
+      });
       await navigator.serviceWorker.ready;
       if (!navigator.serviceWorker.controller)
         await new Promise<void>((resolve) =>
@@ -143,8 +146,19 @@ export function setupOffline() {
       const response = await fetch(`${base}offline-pack.json`);
       if (!response.ok) throw new Error('Offline list unavailable.');
       pack = await response.json();
+      const announce = () =>
+        navigator.serviceWorker.controller?.postMessage({
+          type: 'using-cache',
+          shellCache: pack.shellCache,
+          cache: pack.cache,
+        });
+      announce();
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        announce();
+        void check();
+      });
       await check();
-      // A waiting version takes over on the next clean launch, never during playback.
+      // Adopt request handling immediately; never reload a document or interrupt audio.
       window.addEventListener('online', () => {
         void check();
         void registration.update().catch(() => {});
