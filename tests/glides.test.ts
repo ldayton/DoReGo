@@ -130,3 +130,48 @@ test('descending glides start high and finish low without returning up', () => {
     assert.match(e.title!, /Descending/);
   }
 });
+
+test('independent glide choices have matching visual, audio and MIDI endpoints', () => {
+  for (const pattern of ['fifthGlide', 'octaveGlide'] as const) {
+    const span = pattern === 'fifthGlide' ? 7 : 12;
+    for (const direction of ['up', 'down', 'both'] as const) {
+      for (const progression of ['up', 'down', 'both'] as const) {
+        const e = generateExercise({
+          ...DEFAULT_SPEC,
+          pattern,
+          direction,
+          progression,
+          low: 52,
+          high: 54 + span,
+          countIn: 0,
+          startingChords: false,
+          repetitions: 1,
+        });
+        for (const n of e.notes) {
+          assert.equal(n.glideReturns, direction === 'both');
+          assert.equal(n.slotBeats, direction === 'both' ? 14 : 8);
+          const end = notePitchAt(n, n.onsetBeat + n.slotBeats);
+          assert.equal(end, n.midi + (direction === 'both' ? 0 : n.glideSpan!));
+          if (direction !== 'both') {
+            let previous = n.midi;
+            for (let i = 0; i <= 100; i++) {
+              const pitch = notePitchAt(n, n.onsetBeat + (n.slotBeats * i) / 100);
+              assert.ok(direction === 'up' ? pitch >= previous - 1e-9 : pitch <= previous + 1e-9);
+              previous = pitch;
+            }
+          }
+        }
+        assert.ok(
+          audioEvents(e, 0)
+            .filter((event) => event.glide)
+            .every((event) => event.glide!.returns === (direction === 'both'))
+        );
+        const cello = new Midi(exportMidi(e)).tracks.find(
+          (track) => track.name === 'Cello glides'
+        )!;
+        assert.equal(cello.pitchBends.at(-1)!.value, 0);
+        assert.ok(cello.pitchBends.some((bend) => Math.abs(bend.value) > 0.5));
+      }
+    }
+  }
+});

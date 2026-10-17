@@ -28,8 +28,8 @@ No account, API key, microphone access, or hosted service is required. CC BY 4.0
 
 ## Practice
 
-- Seven exercises: **Arpeggio & Scale** (default: E3–E5, 150 BPM), **Octave Arpeggio**, **Rossini Scale**, **Five-Note Scale**, **Major Scale**, **Fifth Glide**, and **Octave Glide**. Rossini has a fixed up-and-back phrase; the other six exercises let you select **Ascending**, **Descending**, or both. Both plays ascending first, then descending.
-- Choose your lowest/highest vocal notes and direction. Major Scale instead uses a single Key selector for the starting note, including its octave; the other exercises move by semitone through your range.
+- Seven exercises: **Arpeggio & Scale** (default: E3–E5, 150 BPM), **Octave Arpeggio**, **Rossini Scale**, **Five-Note Scale**, **Major Scale**, **Fifth Glide**, and **Octave Glide**. Phrase shape and movement between rounds are separate controls. Rossini keeps its fixed phrase; Major Scale stays on its selected key.
+- Choose your lowest/highest vocal notes, phrase contour, and round progression. Major Scale instead uses a single Key selector for the starting note, including its octave; the other exercises move by semitone through your range.
 - Desktop note fields accept typed names such as E3 or F#4 and open a note grid organized by octave. Mobile uses snapping swipe wheels. Arrow keys move by semitone and Page Up/Down by octave.
 - Transpose the key and range together with the minus/plus buttons.
 - Adjust tempo (60–240 BPM), rounds, inter-round rests, count-in, and volume. Pitched phrases use the sampled bitKlavier Steinway Grand with fixed natural articulation. Glides use sustained VSCO cello recordings, with the usual piano chord introduction. All beats are quarter-note beats. The default count-in is two bars of 4/4 (eight beats), displayed as two labeled four-beat groups with the active beat highlighted and each downbeat accented.
@@ -93,15 +93,13 @@ All runtime dependency versions are pinned by `package-lock.json`. The app does 
 
 ### Generated exercises
 
-**Arpeggio & Scale** generates a reusable vocal phrase and shifts it one semitone at a time through your range. Ascending uses 1–3–5–4–3–2–1 twice; descending uses 5–3–1–2–3–4–5 twice, sharing the middle endpoint. A range of at least a perfect fifth is required. Rounds repeat the full sweep; rests separate phrases. Starting-note chords are optional and can include accompaniment below your vocal range.
+**Within each round** controls the phrase, with a small preview of its actual contour. Arpeggio & Scale, Octave Arpeggio and Five-Note Scale offer **Rising first** and **Falling first**; these phrases already return to their starting note. Glides offer **Up**, **Down** (eight beats each, no return), or **Up & back** (fourteen beats). Rossini has a fixed contour, so this control is hidden.
 
-**Five-Note Scale** uses 1–2–3–4–5–4–3–2–1 ascending, or 5–4–3–2–1–2–3–4–5 descending. **Octave Arpeggio** uses 1–3–5–8–5–3–1 ascending, or 8–5–3–1–3–5–8 descending. Both hold the final note for two beats and move by semitone through the selected range, with optional starting chords. Selecting either expands a smaller range to fit its perfect fifth or octave.
+**Between rounds** independently chooses **Higher**, **Lower**, or **Higher then lower**, one semitone at a time. The starting-note preview reflects the actual practice targets, including phrases that start high. The same phrase, rhythm and starting chords are retained throughout the sweep. The turnaround key is played once; a one-key range plays one round per repeat and hides the between-round controls while remembering the selection. Rossini supports all three progressions while keeping its fixed melody.
 
-**Rossini Scale** uses the fixed sequence 1–3–5–8–10–12–11–9–7–5–4–2–1, with regular beats and a held final note. It shifts upward by semitone between rounds, fitting the entire melody within the chosen range. It needs at least 19 semitones; selecting it expands a smaller range to fit. Direction is hidden and ignored for this exercise. Starting chords, repeats, count-in, rests, and tempo remain available.
+**Major Scale** uses Key as its starting note and generates one octave **Up**, **Down**, or **Up then down**. It repeats on that key, so range and between-round progression controls are hidden.
 
-**Major Scale** uses Key as its starting note and generates one octave ascending, descending, or up and back when both directions are selected, without lowest/highest controls. Rounds repeat that scale, with the configured rest between rounds.
-
-All exercises use the tempo, fixed exercise timing, natural articulation, count-in, rounds, volume, and export settings. Older saved exercise types are mapped to Arpeggio & Scale or Major Scale; the former combined up-and-down direction maps to ascending.
+Preferences are saved automatically. Legacy descending selections become falling-first phrases with lower round progression; legacy combined selections become rising-first phrases with higher-then-lower progression. CLI JSON can specify `direction` for phrase orientation and `progression` (`up`, `down`, `both`) independently. Omitting `progression` retains the old coupled CLI behavior for compatibility. For glide phrases and Major Scale, `direction: "both"` means up and back; other vocal patterns use `both` only for progression. Existing saved upward glides migrate to Up & back, preserving their sound.
 
 ## bitKlavier Grand
 
@@ -115,7 +113,7 @@ Regenerate the checked-in web variants with `python3 scripts/prepare-web-samples
 
 ### Cello glides
 
-Fifth Glide and Octave Glide use CC0 VSCO 2 Community Edition cello-section recordings. Each round begins with the usual six-beat piano chord introduction (when starting chords are enabled), then a continuous slide. Ascending phrases take fourteen beats: hold two, rise four, hold two, return four, hold two. Descending phrases take eight beats: hold two, descend four, hold two. Rounds move up by semitone while keeping the complete glide inside the chosen vocal range. Ascending glides start low, rise and return; descending glides start high, fall, hold the lower note, and finish. Selecting both runs the ascending pass then the descending pass through the range, without repeating the turnaround key. The starting-chord option works as it does for the other vocal exercises.
+Fifth Glide and Octave Glide use CC0 VSCO 2 Community Edition cello-section recordings. Each round begins with the usual six-beat piano chord introduction (when starting chords are enabled), then a continuous slide. Up & back takes fourteen beats: hold two, rise four, hold two, return four, hold two. Up and Down take eight beats: hold two, slide four, hold two. Rounds move by semitone in the selected progression while keeping the complete glide inside the chosen vocal range. Up glides start low and finish high; Down glides start high and finish low. Up & back returns to its starting note. Round progression is independent of glide shape: Higher then lower repeats the selected glide through the range and back, without repeating the turnaround key. The starting-chord option works as it does for the other vocal exercises.
 
 One sustained recording, chosen nearest the glide's pitch midpoint, plays throughout the phrase with smooth audio-clock pitch automation. Samples load only when needed; crossfaded sustain loops support slower tempos, and pause/seek resumes at the correct pitch and sample position. The keyboard follows the sounding pitch with a moving marker; Current/Next still show round targets. Video uses the same cello playback; MIDI exports a separate cello track with pitch bends and a declared octave bend range.
 

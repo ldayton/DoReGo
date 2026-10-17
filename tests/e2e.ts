@@ -36,7 +36,10 @@ try {
   await page.goto(base);
   await page.locator('#exercise-title').waitFor();
   assert.equal(await page.locator('#voice').count(), 0);
-  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio & Scale (Ascending)');
+  assert.equal(
+    await page.locator('#exercise-title').textContent(),
+    'Arpeggio & Scale (Rising first)'
+  );
   assert.equal(await page.locator('#bpm').inputValue(), '150');
   assert.equal(await page.locator('#low').inputValue(), '52');
   assert.equal(await page.locator('#high').inputValue(), '76');
@@ -48,7 +51,10 @@ try {
   await setNote('low', 60);
   await setNote('high', 72);
 
-  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio & Scale (Ascending)');
+  assert.equal(
+    await page.locator('#exercise-title').textContent(),
+    'Arpeggio & Scale (Rising first)'
+  );
   assert.deepEqual(await page.locator('#pattern option').allTextContents(), [
     'Arpeggio & Scale',
     'Octave Arpeggio',
@@ -59,8 +65,8 @@ try {
     'Octave Glide',
   ]);
   assert.deepEqual(await page.locator('#direction label span').allTextContents(), [
-    'Ascending',
-    'Descending',
+    'Rising first',
+    'Falling first',
   ]);
   await page.locator('canvas').screenshot({ path: new URL('practice-canvas.png', work).pathname });
   await page.screenshot({ path: new URL('desktop.png', work).pathname, fullPage: true });
@@ -196,7 +202,10 @@ try {
   await setNote('low', 60);
   await setNote('high', 67);
   await page.locator('#pattern').selectOption('arpeggio');
-  assert.equal(await page.locator('#exercise-title').textContent(), 'Arpeggio & Scale (Ascending)');
+  assert.equal(
+    await page.locator('#exercise-title').textContent(),
+    'Arpeggio & Scale (Rising first)'
+  );
   assert.ok(await page.locator('#low').isEnabled());
   assert.ok(await page.locator('#high').isEnabled());
   const narrowSummary = await page.locator('#exercise-summary').textContent();
@@ -206,11 +215,10 @@ try {
   const withChords = await page.locator('#exercise-summary').textContent();
   await page.locator('#startingChords').uncheck();
   assert.notEqual(await page.locator('#exercise-summary').textContent(), withChords);
-  await page.getByRole('checkbox', { name: 'Descending', exact: true }).check();
-  await page.getByRole('checkbox', { name: 'Ascending', exact: true }).uncheck();
+  await page.getByRole('radio', { name: 'Falling first', exact: true }).check();
   assert.equal(
     await page.locator('#exercise-title').textContent(),
-    'Arpeggio & Scale (Descending)'
+    'Arpeggio & Scale (Falling first)'
   );
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));

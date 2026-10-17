@@ -78,7 +78,8 @@ function playEvent(event: AudioEvent, graph: ReturnType<typeof makeGraph>, time:
       event.glide.duration,
       event.elapsed + late,
       time,
-      event.velocity
+      event.velocity,
+      event.glide.returns
     );
   } else if (event.duration > late) {
     return graph.synth.triggerAttackRelease(

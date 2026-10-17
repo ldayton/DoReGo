@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { DEFAULT_SPEC, generateExercise, secondsAt, practiceAt, stateAt } from '../src/music';
 import { Midi, exportMidi } from '../src/midi';
 
-test('both directions sweep ascending then descending, with a single turnaround key', () => {
+test('legacy coupled CLI directions retain their ascending/descending passes', () => {
   for (const [pattern, span] of [
     ['arpeggio', 7],
     ['octaveArpeggio', 12],
@@ -85,7 +85,7 @@ test('Major Scale rises and returns to its starting note without repeating the a
   assert.equal(e.phraseBeats, 15);
   assert.equal(e.totalBeats, 40);
 });
-test('fixed-contour exercises keep their existing directions', () => {
+test('legacy fixed-contour specs keep their existing directions', () => {
   for (const pattern of ['rossini'])
     assert.deepEqual(
       generateExercise({ ...DEFAULT_SPEC, pattern, direction: 'both' }),

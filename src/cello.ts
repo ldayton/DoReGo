@@ -63,7 +63,8 @@ export class CelloGlides {
     fullDuration: number,
     elapsed: number,
     time: number,
-    velocity: number
+    velocity: number,
+    returns = span >= 0
   ) {
     const key = celloKey(midi, span),
       buffer = buffers.get(key);
@@ -79,7 +80,7 @@ export class CelloGlides {
     source.loopStart = 0.95;
     source.loopEnd = Math.floor((buffer.duration - 0.5) * buffer.sampleRate) / buffer.sampleRate;
     const centsAt = (seconds: number) =>
-      (midi - key + glideOffset(seconds / fullDuration, span)) * 100;
+      (midi - key + glideOffset(seconds / fullDuration, span, returns)) * 100;
     // One continuous source and audio-clock automation, including after seeking.
     source.playbackRate.setValueCurveAtTime(
       Float32Array.from(
@@ -134,7 +135,9 @@ export class CelloGlides {
           Float32Array.from(
             { length: 4096 },
             (_, i) =>
-              2 ** ((midi - key + glideOffset(progress + ((1 - progress) * i) / 4095, span)) / 12)
+              2 **
+              ((midi - key + glideOffset(progress + ((1 - progress) * i) / 4095, span, returns)) /
+                12)
           ),
           at,
           remaining

@@ -43,10 +43,10 @@ export function exportMidi(exercise: Exercise): Uint8Array {
       for (let i = 0; i <= steps; i++)
         cello!.addPitchBend({
           ticks: Math.round((n.onsetBeat + (n.durationBeats * i) / steps) * ppq),
-          value: Math.round((glideOffset(i / steps, n.glideSpan) / 12) * 8191),
+          value: Math.round((glideOffset(i / steps, n.glideSpan, n.glideReturns) / 12) * 8191),
         });
-      // Reset after note-off, so a one-way descent never audibly bends back up.
-      if (n.glideSpan < 0)
+      // Reset after note-off, so a one-way glide never audibly bends back.
+      if (n.glideSpan < 0 || n.glideReturns === false)
         cello!.addPitchBend({
           ticks: Math.round((n.onsetBeat + n.durationBeats) * ppq) + 1,
           value: 0,

@@ -28,6 +28,10 @@ import {
   formatTime,
   stateAt,
   practiceAt,
+  phraseLabel,
+  phraseContour,
+  progressionRoots,
+  type Direction,
   type ExerciseSpec,
 } from './music';
 import { Player } from './audio';
@@ -61,7 +65,7 @@ function savedSpec(): ExerciseSpec {
   try {
     return restoreSpec(JSON.parse(localStorage.getItem('dorego.current') || 'null'));
   } catch {
-    return { ...DEFAULT_SPEC };
+    return { ...DEFAULT_SPEC, progression: 'up' };
   }
 }
 // Practice can slow down freely; the CLI/video renderer keeps its duration cap.
@@ -103,6 +107,17 @@ function restoreSpec(input: unknown): ExerciseSpec {
     saved.low = down ? start - 12 : start;
     saved.high = down ? start : start + 12;
   }
+  if (saved.progression === undefined) {
+    saved.progression =
+      saved.pattern === 'rossini' || saved.pattern === 'major' ? 'up' : saved.direction;
+    if (saved.direction === 'both' && saved.pattern !== 'major') saved.direction = 'up';
+  }
+  if (
+    isGlidePattern(saved.pattern as ExerciseSpec['pattern']) &&
+    saved.direction === 'up' &&
+    localStorage.getItem('dorego.glideShapeVersion') !== '1'
+  )
+    saved.direction = 'both';
   return generateExercise(saved).spec;
 }
 
@@ -130,9 +145,23 @@ $('#app').innerHTML = `
           )
             .map((midi) => `<option value="${midi}">${noteName(midi)}</option>`)
             .join('')}</select></label>
-          <fieldset id="direction" class="direction-field"><legend>Direction <span class="direction-hint">Choose one or both</span></legend><div class="direction-toggle"><label><input type="checkbox" name="direction" value="up" /><i class="direction-check" data-lucide="check" aria-hidden="true"></i><i class="direction-arrow" data-lucide="arrow-up-right"></i><span>Ascending</span></label><label><input type="checkbox" name="direction" value="down" /><i class="direction-check" data-lucide="check" aria-hidden="true"></i><i class="direction-arrow" data-lucide="arrow-down-right"></i><span>Descending</span></label></div></fieldset>
+          <fieldset id="direction" class="direction-field"><legend>Within each round</legend><div class="direction-toggle" id="phrase-options"></div></fieldset>
           <div id="range-heading" class="range-label"><span>Range</span><span class="range-actions"><button type="button" id="transpose-down" title="Move range and key down one semitone" aria-label="Transpose down one semitone"><i data-lucide="minus"></i></button><button type="button" id="transpose-up" title="Move range and key up one semitone" aria-label="Transpose up one semitone"><i data-lucide="plus"></i></button></span></div>
           <div id="note-range" class="field-row">${(['low', 'high'] as const).map((id) => `<div class="field small-label"><span>${id === 'low' ? 'Lowest' : 'Highest'}</span><div class="desktop-note"><input id="${id}-spin" type="text" role="combobox" aria-label="${id === 'low' ? 'Lowest' : 'Highest'} note" autocomplete="off" spellcheck="false" maxlength="5" /><button type="button" id="${id}-choose" aria-label="Choose ${id === 'low' ? 'lowest' : 'highest'} note"><i data-lucide="chevron-down"></i></button></div><div class="note-spinner mobile-note"><div class="note-wheel-selection" aria-hidden="true"></div><div id="${id}-wheel" class="note-wheel" role="spinbutton" tabindex="0" aria-label="${id === 'low' ? 'Lowest' : 'Highest'} note" aria-valuemin="24" aria-valuemax="96" aria-description="Swipe or scroll to choose a note."></div></div><input type="hidden" name="${id}" id="${id}" /></div>`).join('')}</div>
+          <fieldset id="progression" class="direction-field progression-field"><legend>Between rounds</legend><div class="direction-toggle progression-toggle">${(
+            [
+              ['up', 'Higher'],
+              ['down', 'Lower'],
+              ['both', 'Higher then lower'],
+            ] as const
+          )
+            .map(
+              ([value, label]) =>
+                `<label><input type="radio" name="progression" value="${value}" /><span>${label}</span></label>`
+            )
+            .join(
+              ''
+            )}</div><p class="progression-preview" id="progression-preview" aria-live="polite"></p></fieldset>
           <details class="more-settings"><summary>More options <i data-lucide="chevron-down"></i></summary><div class="advanced"><label id="starting-chords-field" class="toggle-row" hidden><span>Starting-note chords</span><input name="startingChords" id="startingChords" type="checkbox" role="switch" checked /></label>
             <div class="field-row">${[
               { id: 'repeat', key: 'repetitions', label: 'Repeats', max: 15 },
@@ -259,20 +288,58 @@ for (const id of ['low', 'high']) {
 }
 function populate() {
   for (const [key, value] of Object.entries(spec)) {
-    if (key === 'direction') continue;
+    if (key === 'direction' || key === 'progression') continue;
     const element = form.elements.namedItem(key) as HTMLInputElement | HTMLSelectElement | null;
     if (!element) continue;
     if (element instanceof HTMLInputElement && element.type === 'checkbox')
       element.checked = !!value;
     else element.value = value === null ? '' : String(value);
   }
+  const options = (
+    spec.pattern === 'major' || isGlidePattern(spec.pattern)
+      ? ['up', 'down', 'both']
+      : ['up', 'down']
+  ) as Direction[];
+  const markup = options
+    .map((value) => {
+      const contour = phraseContour(spec.pattern, value);
+      const max = Math.max(...contour, 1);
+      const points = contour
+        .map(
+          (note, index) => `${2 + (index * 60) / (contour.length - 1)},${22 - (note * 20) / max}`
+        )
+        .join(' ');
+      return `<label><input type="radio" name="direction" value="${value}" /><svg class="phrase-contour" viewBox="0 0 64 24" aria-hidden="true"><polyline points="${points}" /></svg><span>${phraseLabel(spec.pattern, value)}</span></label>`;
+    })
+    .join('');
+  const phraseOptions = $('#phrase-options');
+  if (phraseOptions.dataset.pattern !== spec.pattern) {
+    phraseOptions.innerHTML = markup;
+    phraseOptions.dataset.pattern = spec.pattern;
+  }
+  phraseOptions.classList.toggle('three-options', options.length === 3);
   document.querySelectorAll<HTMLInputElement>('input[name="direction"]').forEach((input) => {
-    input.checked = spec.direction === 'both' || spec.direction === input.value;
-    input.setAttribute(
-      'aria-description',
-      'Choose one or both directions. At least one must remain selected.'
-    );
+    input.checked = input.value === spec.direction;
   });
+  document.querySelectorAll<HTMLInputElement>('input[name="progression"]').forEach((input) => {
+    input.checked = input.value === (spec.progression ?? 'up');
+  });
+  const roots = progressionRoots(
+    spec.low,
+    spec.high - vocalSpan(spec.pattern),
+    spec.progression ?? 'up'
+  );
+  const offset = spec.direction === 'down' ? vocalSpan(spec.pattern) : 0;
+  const targets = roots.map((root) => noteName(root + offset, spec.key));
+  const preview =
+    targets.length <= 5
+      ? targets.join(' → ')
+      : spec.progression === 'both'
+        ? `${targets[0]} → … → ${targets[Math.floor(targets.length / 2)]} → … → ${targets[targets.length - 1]}`
+        : `${targets.slice(0, 3).join(' → ')} → … → ${targets[targets.length - 1]}`;
+  $('#progression-preview').textContent =
+    targets.length === 1 ? `${targets[0]} · one key` : preview;
+  $('#progression').hidden = spec.pattern === 'major' || roots.length <= 1;
   syncSpinners();
   syncCounts();
   countInSelect.sync();
@@ -301,11 +368,14 @@ function populate() {
 function readForm(): ExerciseSpec {
   const result = { ...spec, ...Object.fromEntries(new FormData(form)) } as Record<string, unknown>;
   for (const key of numeric) result[key] = Number(result[key]);
-  const directions = [
-    ...document.querySelectorAll<HTMLInputElement>('input[name="direction"]:checked'),
-  ];
-  if (!directions.length) throw new Error('Select at least one direction.');
-  result.direction = directions.length === 2 ? 'both' : directions[0].value;
+  if (
+    result.pattern !== spec.pattern &&
+    result.pattern !== 'major' &&
+    !isGlidePattern(result.pattern as ExerciseSpec['pattern']) &&
+    result.direction === 'both'
+  )
+    result.direction = 'up';
+  result.progression = result.progression ?? 'up';
   if (
     isVocalPattern(result.pattern as ExerciseSpec['pattern']) &&
     result.pattern !== spec.pattern &&
@@ -345,6 +415,7 @@ function toast(message: string) {
 function persist() {
   try {
     localStorage.setItem('dorego.current', JSON.stringify(spec));
+    localStorage.setItem('dorego.glideShapeVersion', '1');
   } catch {
     /* Practice works without storage. */
   }
@@ -426,12 +497,6 @@ function changeVolume() {
 }
 $<HTMLInputElement>('#volume').addEventListener('input', changeVolume);
 $<HTMLInputElement>('#volume').addEventListener('change', changeVolume);
-$('#direction').addEventListener('change', (event) => {
-  if (!document.querySelector('input[name="direction"]:checked')) {
-    (event.target as HTMLInputElement).checked = true;
-    event.stopPropagation();
-  }
-});
 form.addEventListener('change', refresh);
 $('#tempo-control').addEventListener('change', () => {
   changeTempo();

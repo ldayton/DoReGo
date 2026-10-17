@@ -5,7 +5,7 @@ export type AudioEvent = {
   id: string;
   onsetBeat: number;
   endBeat: number;
-  glide?: { midi: number; span: number; duration: number };
+  glide?: { midi: number; span: number; duration: number; returns?: boolean };
   time: number;
   duration: number;
   elapsed: number;
@@ -26,7 +26,14 @@ export function audioEvents(exercise: Exercise, offset: number): AudioEvent[] {
       onsetBeat: note.onsetBeat,
       endBeat: note.onsetBeat + note.durationBeats,
       ...(note.glideSpan
-        ? { glide: { midi: note.midi, span: note.glideSpan, duration: end - start } }
+        ? {
+            glide: {
+              midi: note.midi,
+              span: note.glideSpan,
+              duration: end - start,
+              returns: note.glideReturns,
+            },
+          }
         : {}),
       time: Math.max(0, start - offset),
       duration: end - Math.max(start, offset),

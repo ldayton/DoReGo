@@ -35,14 +35,13 @@ try {
   for (const [pattern, span, direction] of [
     ['fifthGlide', 7, 'up'],
     ['fifthGlide', 7, 'down'],
+    ['fifthGlide', 7, 'both'],
     ['octaveGlide', 12, 'up'],
     ['octaveGlide', 12, 'down'],
+    ['octaveGlide', 12, 'both'],
   ] as const) {
     await page.locator('#pattern').selectOption(pattern);
     await page.locator(`input[name="direction"][value="${direction}"]`).check();
-    await page
-      .locator(`input[name="direction"][value="${direction === 'up' ? 'down' : 'up'}"]`)
-      .uncheck();
     assert.ok(await page.locator('#direction').isVisible());
     assert.equal(await page.locator('#starting-chords-field').getAttribute('hidden'), null);
     await page.waitForFunction(() =>
@@ -67,6 +66,7 @@ try {
         ...DEFAULT_SPEC,
         pattern,
         direction,
+        progression: 'up',
         low: 52,
         high: 52 + span,
         bpm: 60,
@@ -110,9 +110,10 @@ try {
         return { cents: 1200 * Math.log2(rate / lagBest / expected), correlation: best };
       };
       const root = 440 * 2 ** ((exercise.notes.find(n => n.glideSpan).midi - 69) / 12);
-      const span = exercise.notes.find(n => n.glideSpan).glideSpan;
+      const glide = exercise.notes.find(n => n.glideSpan);
+      const span = glide.glideSpan;
       const end = exercise.totalBeats;
-      const pitches = [pitchAt(6.5, root), pitchAt(12.5, root * 2 ** (span / 12)), pitchAt(end - .7, root * 2 ** ((span < 0 ? span : 0) / 12))];
+      const pitches = [pitchAt(6.5, root), pitchAt(12.5, root * 2 ** (span / 12)), pitchAt(end - .7, root * 2 ** ((glide.glideReturns ? 0 : span) / 12))];
       return { peak, rms: Math.sqrt(energy / frames), maxJump, pitches, lateRms: rmsAt(end - .7), finalRms: rmsAt(end + .5) };
     })()`);
     assert.ok(result.peak > 0.05 && result.peak < 0.99, JSON.stringify(result));

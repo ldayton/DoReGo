@@ -27,12 +27,12 @@ export const PATTERNS = {
   fifthGlide: {
     name: 'Fifth Glide',
     intervals: [0, 7, 0],
-    description: 'A continuous cello glide up a fifth and back, moving one semitone per round.',
+    description: 'A continuous cello glide through a fifth, moving one semitone per round.',
   },
   octaveGlide: {
     name: 'Octave Glide',
     intervals: [0, 12, 0],
-    description: 'A continuous cello glide up an octave and back, moving one semitone per round.',
+    description: 'A continuous cello glide through an octave, moving one semitone per round.',
   },
 } as const;
 export type Pattern = keyof typeof PATTERNS;
@@ -65,6 +65,8 @@ export interface ExerciseSpec {
   low: number;
   high: number;
   direction: Direction;
+  // Omitted only by legacy CLI specs that coupled phrase and sweep direction.
+  progression?: Direction;
   bpm: number;
   noteBeats: number;
   repetitions: number;
@@ -87,6 +89,7 @@ export interface NoteEvent {
   degree: number;
   velocity?: number;
   glideSpan?: number;
+  glideReturns?: boolean;
 }
 export interface Exercise {
   spec: ExerciseSpec;
@@ -184,6 +187,16 @@ export function validateSpec(input: unknown): ExerciseSpec {
   if (typeof s.pattern !== 'string' || !Object.hasOwn(PATTERNS, s.pattern))
     throw new Error('Choose a supported pattern.');
   if (!['up', 'down', 'both'].includes(String(s.direction))) throw new Error('Choose a direction.');
+  if (s.progression !== undefined && !['up', 'down', 'both'].includes(String(s.progression)))
+    throw new Error('Choose how rounds move through the range.');
+  if (
+    s.progression !== undefined &&
+    s.direction === 'both' &&
+    s.pattern !== 'major' &&
+    s.pattern !== 'rossini' &&
+    !isGlidePattern(s.pattern as Pattern)
+  )
+    throw new Error('Choose rising first or falling first within each round.');
   if (s.voice !== 'bitklavier') throw new Error('Only bitKlavier is supported.');
   for (const key of ['metronome', 'solfege'])
     if (typeof s[key] !== 'boolean') throw new Error(`Invalid ${key}.`);
@@ -205,6 +218,7 @@ export function validateSpec(input: unknown): ExerciseSpec {
     solfege: s.solfege as boolean,
     transition: s.transition === null ? null : num('transition', 24, 96, true),
   };
+  if (s.progression !== undefined) result.progression = s.progression as Direction;
   if (s.startingChords !== undefined && typeof s.startingChords !== 'boolean')
     throw new Error('Invalid starting chords setting.');
   result.startingChords = s.startingChords === undefined ? true : s.startingChords;
@@ -213,6 +227,8 @@ export function validateSpec(input: unknown): ExerciseSpec {
 }
 export function generateExercise(input: unknown, maxDuration = 600): Exercise {
   const spec = validateSpec(input);
+  if (spec.progression !== undefined && isVocalPattern(spec.pattern))
+    return generateProgressingExercise(spec, maxDuration);
   if (spec.direction === 'both' && isVocalPattern(spec.pattern))
     return generateBidirectionalExercise(spec, maxDuration);
   if (isGlidePattern(spec.pattern)) return generateGlideExercise(spec, maxDuration);
@@ -256,17 +272,122 @@ export function generateExercise(input: unknown, maxDuration = 600): Exercise {
     throw new Error('Keep exercises under 10 minutes. Reduce repetitions, range, or note length.');
   return { spec, notes, totalBeats, phraseBeats, pitches, rounds };
 }
+// Phrase orientation and movement between complete rounds are independent.
+export function progressionRoots(low: number, high: number, direction: Direction) {
+  const roots = Array.from({ length: Math.max(0, high - low + 1) }, (_, i) => low + i);
+  if (direction === 'down') roots.reverse();
+  else if (direction === 'both') roots.push(...roots.slice(0, -1).reverse());
+  return roots;
+}
+export function phraseLabel(pattern: Pattern, direction: Direction) {
+  if (pattern === 'major')
+    return direction === 'both' ? 'Up then down' : direction === 'down' ? 'Down' : 'Up';
+  if (isGlidePattern(pattern))
+    return direction === 'both' ? 'Up & back' : direction === 'down' ? 'Down' : 'Up';
+  return direction === 'down' ? 'Falling first' : 'Rising first';
+}
+export function phraseContour(pattern: Pattern, direction: Direction): readonly number[] {
+  if (isGlidePattern(pattern)) {
+    const span = vocalSpan(pattern);
+    return direction === 'down'
+      ? [span, span, 0, 0]
+      : direction === 'both'
+        ? [0, 0, span, span, 0, 0]
+        : [0, 0, span, span];
+  }
+  if (pattern === 'major') {
+    const up = [0, 2, 4, 5, 7, 9, 11, 12];
+    return direction === 'down'
+      ? up.reverse()
+      : direction === 'both'
+        ? [...up, ...up.slice(0, -1).reverse()]
+        : up;
+  }
+  if (pattern === 'arpeggio')
+    return direction === 'down'
+      ? [7, 4, 0, 2, 4, 5, 7, 4, 0, 2, 4, 5, 7]
+      : [0, 4, 7, 5, 4, 2, 0, 4, 7, 5, 4, 2, 0];
+  if (direction === 'down' && pattern === 'fiveNote') return [7, 5, 4, 2, 0, 2, 4, 5, 7];
+  if (direction === 'down' && pattern === 'octaveArpeggio') return [12, 7, 4, 0, 4, 7, 12];
+  return PATTERNS[pattern].intervals;
+}
+function generateProgressingExercise(spec: ExerciseSpec, maxDuration: number): Exercise {
+  const span = vocalSpan(spec.pattern);
+  // Reuse a single complete phrase, including its original chord voicing,
+  // articulation and timing; transpose it without changing its contour.
+  const generate = isGlidePattern(spec.pattern) ? generateGlideExercise : generateVocalExercise;
+  if (spec.high - spec.low < span)
+    return generate({ ...spec, progression: undefined }, maxDuration);
+  const phrase = generate(
+    { ...spec, high: spec.low + span, repetitions: 1, countIn: 0, restBeats: 0 },
+    Infinity
+  );
+  const roots = progressionRoots(spec.low, spec.high - span, spec.progression!);
+  const phraseBeats = roots.length * phrase.totalBeats + (roots.length - 1) * spec.restBeats;
+  const totalBeats =
+    spec.countIn + spec.repetitions * phraseBeats + (spec.repetitions - 1) * spec.restBeats;
+  if (secondsAt(totalBeats, spec.bpm) > maxDuration)
+    throw new Error(
+      'Keep exercises under 10 minutes. Reduce repetitions, range, rests, or note length.'
+    );
+  const notes: NoteEvent[] = [],
+    guideNotes: NoteEvent[] = [],
+    rounds: PracticeRound[] = [];
+  const guide = new Set(phrase.guideNotes!.map((note) => note.id));
+  for (let rep = 0; rep < spec.repetitions; rep++)
+    roots.forEach((root, index) => {
+      const shift = root - spec.low;
+      const start =
+        spec.countIn +
+        rep * (phraseBeats + spec.restBeats) +
+        index * (phrase.totalBeats + spec.restBeats);
+      for (const note of phrase.notes) {
+        const copy = {
+          ...note,
+          id: notes.length,
+          midi: note.midi + shift,
+          onsetBeat: note.onsetBeat + start,
+          repetition: rep + 1,
+        };
+        notes.push(copy);
+        if (guide.has(note.id)) guideNotes.push(copy);
+      }
+      const round = phrase.rounds[0];
+      rounds.push({
+        ...round,
+        id: rounds.length,
+        midi: round.midi + shift,
+        onsetBeat: start,
+        endBeat: start + phrase.totalBeats,
+      });
+    });
+  return {
+    spec,
+    notes,
+    guideNotes,
+    rounds,
+    totalBeats,
+    phraseBeats,
+    pitches: [...new Set(notes.flatMap((n) => [n.midi, n.midi + (n.glideSpan ?? 0)]))].sort(
+      (a, b) => a - b
+    ),
+    title:
+      spec.pattern === 'rossini'
+        ? PATTERNS.rossini.name
+        : `${PATTERNS[spec.pattern].name} (${phraseLabel(spec.pattern, spec.direction)})`,
+  };
+}
 const GLIDE_HOLD_BEATS = 2;
 const GLIDE_SLIDE_BEATS = 4;
 export const GLIDE_BEATS = 3 * GLIDE_HOLD_BEATS + 2 * GLIDE_SLIDE_BEATS;
-export function glideOffset(progress: number, span: number) {
+export function glideOffset(progress: number, span: number, returns = span >= 0) {
   const beat =
     Math.max(0, Math.min(1, progress)) *
-    (span < 0 ? 2 * GLIDE_HOLD_BEATS + GLIDE_SLIDE_BEATS : GLIDE_BEATS);
+    (returns ? GLIDE_BEATS : 2 * GLIDE_HOLD_BEATS + GLIDE_SLIDE_BEATS);
   const ease = (t: number) => (1 - Math.cos(Math.PI * t)) / 2;
   if (beat < 2) return 0;
   if (beat < 6) return span * ease((beat - 2) / GLIDE_SLIDE_BEATS);
-  if (span < 0 || beat < 8) return span;
+  if (!returns || beat < 8) return span;
   if (beat < 12) return span * (1 - ease((beat - 8) / GLIDE_SLIDE_BEATS));
   return 0;
 }
@@ -291,7 +412,9 @@ function addStartingChords(
 export function notePitchAt(note: NoteEvent, beat: number) {
   return (
     note.midi +
-    (note.glideSpan ? glideOffset((beat - note.onsetBeat) / note.slotBeats, note.glideSpan) : 0)
+    (note.glideSpan
+      ? glideOffset((beat - note.onsetBeat) / note.slotBeats, note.glideSpan, note.glideReturns)
+      : 0)
   );
 }
 function generateGlideExercise(spec: ExerciseSpec, maxDuration: number): Exercise {
@@ -301,12 +424,14 @@ function generateGlideExercise(spec: ExerciseSpec, maxDuration: number): Exercis
       `${PATTERNS[spec.pattern].name} needs a range of at least ${span === 12 ? 'an octave' : 'a perfect fifth'}.`
     );
   const descending = spec.direction === 'down';
+  const returns =
+    spec.direction === 'both' || (spec.direction === 'up' && spec.progression === undefined);
   const roots = Array.from({ length: spec.high - spec.low - span + 1 }, (_, i) =>
     descending ? spec.high - i : spec.low + i
   );
   const cueBeats = spec.startingChords ? 6 * spec.noteBeats : 0;
   const glideBeats =
-    (descending ? 2 * GLIDE_HOLD_BEATS + GLIDE_SLIDE_BEATS : GLIDE_BEATS) * spec.noteBeats;
+    (returns ? GLIDE_BEATS : 2 * GLIDE_HOLD_BEATS + GLIDE_SLIDE_BEATS) * spec.noteBeats;
   const phraseLength = cueBeats + glideBeats;
   const phraseBeats = roots.length * phraseLength + (roots.length - 1) * spec.restBeats;
   const totalBeats =
@@ -361,6 +486,7 @@ function generateGlideExercise(spec: ExerciseSpec, maxDuration: number): Exercis
         repetition: rep + 1,
         velocity: 0.8,
         glideSpan: descending ? -span : span,
+        glideReturns: returns,
       });
       guideNotes.push(notes[notes.length - 1]);
     });
@@ -377,6 +503,7 @@ function generateGlideExercise(spec: ExerciseSpec, maxDuration: number): Exercis
     title: `${PATTERNS[spec.pattern].name} (${directionName(spec.direction)})`,
   };
 }
+// Compatibility for CLI JSON written before progression was independent.
 function generateBidirectionalExercise(spec: ExerciseSpec, maxDuration: number): Exercise {
   const generateLeg = isGlidePattern(spec.pattern) ? generateGlideExercise : generateVocalExercise;
   const up = generateLeg({ ...spec, direction: 'up', countIn: 0, repetitions: 1 }, Infinity);
