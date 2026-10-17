@@ -40,6 +40,7 @@ import { NotePicker } from './note-picker';
 import { AnchoredSelect } from './anchored-select';
 import { drawExercise, WIDTH, HEIGHT, MOBILE_HEIGHT } from './render';
 import './style.css';
+import { setupOffline } from './offline';
 
 const $ = <T extends HTMLElement = HTMLElement>(selector: string) =>
   document.querySelector<T>(selector)!;
@@ -129,6 +130,7 @@ $('#app').innerHTML = `
   <main>
     <h1 class="sr-only">Practice</h1>
     <div class="studio">
+      <div class="builder-column">
       <aside class="settings" aria-label="Exercise builder">
         <div class="panel-heading"><h2>Exercise builder</h2><i data-lucide="music-2"></i></div>
         <form id="exercise-form">
@@ -176,6 +178,7 @@ $('#app').innerHTML = `
           </div></details>
         </form>
       </aside>
+      </div>
       <section class="workspace" aria-label="Practice studio">
         <div class="exercise-heading"><div><h2 id="exercise-title"></h2></div></div>
         <div class="practice-panel">
@@ -195,6 +198,9 @@ $('#app').innerHTML = `
   <dialog id="how-dialog" class="dialog"><div class="dialog-top"><button class="icon-button close-dialog" aria-label="Close how it works"><i data-lucide="x"></i></button></div><h2>Help</h2><ol class="how-steps"><li>Choose an exercise, range, and tempo.</li><li>Press Play and follow the notes.</li><li>Adjust the exercise whenever you like.</li></ol><p class="field-hint">Shortcuts: Space to play or pause. R to restart. F for fullscreen.</p><p class="field-hint"><a href="${import.meta.env.BASE_URL}samples/bitklavier/NOTICE.txt" target="_blank" rel="noopener">bitKlavier Grand recordings &amp; credits · CC BY 4.0</a></p><p class="field-hint"><a href="${import.meta.env.BASE_URL}samples/vsco-cello/NOTICE.txt" target="_blank" rel="noopener">VSCO cello recordings &amp; credits · CC0</a></p></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
 `;
+
+$('.builder-column').insertAdjacentHTML('beforeend', `<section class="offline-section" aria-label="Offline use"><div><h2>Take it with you</h2><p id="offline-status" role="status">Preparing offline support…</p></div><button type="button" id="offline-download" class="quiet-button" disabled>Download for offline use</button><progress id="offline-progress" aria-label="Offline download progress" hidden></progress></section>`);
+setupOffline();
 
 const canvas = $<HTMLCanvasElement>('#stage');
 canvas.width = WIDTH;

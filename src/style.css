@@ -1768,3 +1768,25 @@ main {
 .progression-field {
   margin-top: 16px;
 }
+
+.builder-column { min-width: 0; width: 100%; }
+@media (max-width: 760px) {
+  .builder-column { order: 1; }
+}
+.offline-section {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fbfaf6;
+  margin-top: 16px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.offline-section h2 { margin: 0 0 6px; font-size: 16px; }
+.offline-section p { margin: 0; font-size: 12px; color: #7c8276; line-height: 1.5; }
+.offline-section .is-ready { color: #50613b; }
+.offline-section progress { display: block; width: 100%; margin: 12px 0; accent-color: #93a76c; }
+.offline-section progress[hidden] { display: none; }
+.offline-section button { border: 1px solid #dfe2d5; border-radius: 8px; padding: 10px 14px; }
