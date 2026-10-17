@@ -304,9 +304,14 @@ function populate() {
     .map((value) => {
       const contour = phraseContour(spec.pattern, value);
       const max = Math.max(...contour, 1);
-      const points = contour
+      // Show the phrase's turning points, rather than every uneven note interval.
+      const outline = contour.filter((note, index) =>
+        index === 0 || index === contour.length - 1 ||
+        Math.sign(note - contour[index - 1]) !== Math.sign(contour[index + 1] - note)
+      );
+      const points = outline
         .map(
-          (note, index) => `${2 + (index * 60) / (contour.length - 1)},${22 - (note * 20) / max}`
+          (note, index) => `${4 + (index * 56) / (outline.length - 1)},${21 - (note * 18) / max}`
         )
         .join(' ');
       return `<label><input type="radio" name="direction" value="${value}" /><svg class="phrase-contour" viewBox="0 0 64 24" aria-hidden="true"><polyline points="${points}" /></svg><span>${phraseLabel(spec.pattern, value)}</span></label>`;
